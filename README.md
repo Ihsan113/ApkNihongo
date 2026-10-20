@@ -1,4 +1,4 @@
-# NihonGo Native Android — v0.1.3
+# NihonGo Native Android — v0.1.4
 
 Fondasi aplikasi Android native untuk NihonGo, diambil dari source web yang diberikan dan menggunakan backend produksi yang sama.
 
@@ -74,3 +74,8 @@ Untuk mendapatkan SHA-1 debug, jalankan:
 ## Patch kompatibilitas 0.1.2
 
 Error `androidx.compose.runtime:runtime-saveable-android:1.12.0 requires Android Gradle plugin 9.1.0 or higher` diperbaiki dengan memindahkan Compose BOM ke `2025.12.00`, yang menggunakan Compose 1.10. Dependency `core-ktx` dan `activity-compose` juga diselaraskan untuk baseline SDK 36. Detail perubahan ada di `PATCH-NOTES-v0.1.3.md`.
+
+
+## Patch kompatibilitas 0.1.4
+
+Error `Using 'jvmTarget: String' is an error. Please migrate to the compilerOptions DSL` diperbaiki dengan menghapus `android.kotlinOptions { jvmTarget = "17" }` dan memindahkan target JVM ke `kotlin.compilerOptions` bertipe (`JvmTarget.JVM_17`). Ini mengikuti DSL resmi Kotlin Gradle Plugin 2.4.x. Versi aplikasi menjadi `0.1.4` / `versionCode 5`.
