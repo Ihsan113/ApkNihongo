@@ -113,7 +113,9 @@ fun LoginScreen(
             .fillMaxSize()
             .background(NihongoPalette.background)
     ) {
-        val heroHeight = (maxHeight * 0.70f).coerceAtMost(520.dp).coerceAtLeast(390.dp)
+        val viewportWidth = maxWidth
+        val viewportHeight = maxHeight
+        val heroHeight = (viewportHeight * 0.70f).coerceAtMost(520.dp).coerceAtLeast(390.dp)
         Image(
             painter = painterResource(R.drawable.login_hero),
             contentDescription = null,
@@ -179,12 +181,12 @@ fun LoginScreen(
                 }
             }
 
-            Spacer(Modifier.height(if (maxHeight < 760.dp) 47.dp else 63.dp))
+            Spacer(Modifier.height(if (viewportHeight < 760.dp) 47.dp else 63.dp))
 
             Text(
                 text = "日本語",
                 color = NihongoPalette.redLight,
-                fontSize = if (maxWidth < 360.dp) 57.sp else 66.sp,
+                fontSize = if (viewportWidth < 360.dp) 57.sp else 66.sp,
                 lineHeight = 68.sp,
                 fontWeight = FontWeight.Black,
                 letterSpacing = 5.sp,
@@ -195,7 +197,7 @@ fun LoginScreen(
             Text(
                 text = if (isId) "Masuk ke Nihongo" else "Sign in to Nihongo",
                 color = NihongoPalette.white,
-                fontSize = if (maxWidth < 360.dp) 29.sp else 32.sp,
+                fontSize = if (viewportWidth < 360.dp) 29.sp else 32.sp,
                 lineHeight = 37.sp,
                 fontWeight = FontWeight.Black,
                 letterSpacing = (-1.1).sp,
@@ -213,7 +215,7 @@ fun LoginScreen(
                 lineHeight = 18.sp,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.width(315.dp.coerceAtMost(maxWidth - 28.dp))
+                modifier = Modifier.width(315.dp.coerceAtMost(viewportWidth - 28.dp))
             )
 
             Spacer(Modifier.height(30.dp))

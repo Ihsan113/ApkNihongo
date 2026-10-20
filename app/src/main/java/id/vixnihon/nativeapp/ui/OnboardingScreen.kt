@@ -92,10 +92,12 @@ fun OnboardingScreen(
             .fillMaxSize()
             .background(NihongoPalette.background)
     ) {
+        val viewportWidth = maxWidth
+        val viewportHeight = maxHeight
         Box(
             modifier = Modifier
                 .align(Alignment.TopCenter)
-                .size((maxWidth * 0.84f).coerceAtMost(340.dp))
+                .size((viewportWidth * 0.84f).coerceAtMost(340.dp))
                 .background(
                     Brush.radialGradient(
                         colors = listOf(Color(0x1DE03535), Color(0x07060711), Color.Transparent)
@@ -148,7 +150,7 @@ fun OnboardingScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height((maxHeight * 0.43f).coerceAtMost(365.dp).coerceAtLeast(275.dp)),
+                    .height((viewportHeight * 0.43f).coerceAtMost(365.dp).coerceAtLeast(275.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
@@ -165,7 +167,7 @@ fun OnboardingScreen(
             Text(
                 text = if (isId) slide.titleId else slide.titleEn,
                 color = NihongoPalette.white,
-                fontSize = if (maxWidth < 360.dp) 29.sp else 33.sp,
+                fontSize = if (viewportWidth < 360.dp) 29.sp else 33.sp,
                 lineHeight = 37.sp,
                 fontWeight = FontWeight.Black,
                 letterSpacing = (-0.9).sp,
@@ -179,7 +181,7 @@ fun OnboardingScreen(
                 lineHeight = 21.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.width(320.dp.coerceAtMost(maxWidth - 24.dp))
+                modifier = Modifier.width(320.dp.coerceAtMost(viewportWidth - 24.dp))
             )
 
             Spacer(Modifier.height(21.dp))

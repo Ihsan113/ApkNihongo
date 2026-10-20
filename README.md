@@ -1,4 +1,4 @@
-# NihonGo Native Android — v0.1.2
+# NihonGo Native Android — v0.1.3
 
 Fondasi aplikasi Android native untuk NihonGo, diambil dari source web yang diberikan dan menggunakan backend produksi yang sama.
 
@@ -73,4 +73,4 @@ Untuk mendapatkan SHA-1 debug, jalankan:
 
 ## Patch kompatibilitas 0.1.2
 
-Error `androidx.compose.runtime:runtime-saveable-android:1.12.0 requires Android Gradle plugin 9.1.0 or higher` diperbaiki dengan memindahkan Compose BOM ke `2025.12.00`, yang menggunakan Compose 1.10. Dependency `core-ktx` dan `activity-compose` juga diselaraskan untuk baseline SDK 36. Detail perubahan ada di `PATCH-NOTES-v0.1.2.md`.
+Error `androidx.compose.runtime:runtime-saveable-android:1.12.0 requires Android Gradle plugin 9.1.0 or higher` diperbaiki dengan memindahkan Compose BOM ke `2025.12.00`, yang menggunakan Compose 1.10. Dependency `core-ktx` dan `activity-compose` juga diselaraskan untuk baseline SDK 36. Detail perubahan ada di `PATCH-NOTES-v0.1.3.md`.
