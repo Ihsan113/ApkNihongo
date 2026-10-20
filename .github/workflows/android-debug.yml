@@ -20,9 +20,12 @@ jobs:
           distribution: temurin
           java-version: '17'
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          # Do not request the deprecated Google SDK package named 'tools'.
+          packages: 'platform-tools'
       - name: Install Android platform and build tools
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
       - name: Build debug APK
         run: ./gradlew --no-daemon :app:assembleDebug
       - name: Upload APK

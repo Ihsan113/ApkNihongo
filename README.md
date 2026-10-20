@@ -1,4 +1,4 @@
-# NihonGo Native Android — v0.1.0
+# NihonGo Native Android — v0.1.1
 
 Fondasi aplikasi Android native untuk NihonGo, diambil dari source web yang diberikan dan menggunakan backend produksi yang sama.
 
@@ -11,7 +11,7 @@ Fondasi aplikasi Android native untuk NihonGo, diambil dari source web yang dibe
 - Onboarding tiga halaman memakai ilustrasi dan copy dari source web, dengan status selesai yang disimpan per akun di perangkat.
 - Home awal memakai palet, background, header Jepang, card “Lanjutkan Belajar”, ringkasan, dan pola navigasi NihonGo. Menu belajar selanjutnya masih berupa placeholder/snackbar karena cakupan tahap ini memang sampai Home.
 - Gambar diubah menjadi WebP dengan ukuran terkontrol agar tidak membawa seluruh aset web/3D yang berat ke aplikasi.
-- Workflow GitHub Actions disediakan untuk membuat debug APK tanpa harus membangun langsung di HP.
+- Workflow GitHub Actions disediakan untuk membuat debug APK tanpa harus membangun langsung di HP. Workflow memakai `android-actions/setup-android@v4` dan hanya meminta `platform-tools`; paket SDK lama bernama `tools` tidak lagi diminta.
 
 ## Backend
 
@@ -42,6 +42,8 @@ Akun dibuat/ditemukan oleh mekanisme Google Login pada backend yang sudah ada. T
 `gradlew`/`gradlew.bat` di starter ini merupakan bootstrap kecil: pada pemakaian pertama, skrip mengunduh Gradle 8.13 dan memeriksa SHA-256 distribusi resmi. Sesudah itu Gradle dipakai dari cache lokal.
 
 ## Build lewat GitHub Actions (praktis dari HP)
+
+Workflow sudah diperbaiki agar tidak lagi gagal pada `Warning: Failed to find package 'tools'`. Aksi Android SDK terbaru dipakai dengan paket `platform-tools` eksplisit, lalu platform Android 36 dan build-tools 36.0.0 dipasang pada langkah terpisah.
 
 1. Buat repository GitHub dan unggah seluruh isi folder project ini.
 2. Buka tab **Actions** → workflow **Build NihonGo Native Android** → **Run workflow**.
