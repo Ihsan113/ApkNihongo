@@ -1,4 +1,4 @@
-# NihonGo Native Android — v0.1.1
+# NihonGo Native Android — v0.1.2
 
 Fondasi aplikasi Android native untuk NihonGo, diambil dari source web yang diberikan dan menggunakan backend produksi yang sama.
 
@@ -11,7 +11,7 @@ Fondasi aplikasi Android native untuk NihonGo, diambil dari source web yang dibe
 - Onboarding tiga halaman memakai ilustrasi dan copy dari source web, dengan status selesai yang disimpan per akun di perangkat.
 - Home awal memakai palet, background, header Jepang, card “Lanjutkan Belajar”, ringkasan, dan pola navigasi NihonGo. Menu belajar selanjutnya masih berupa placeholder/snackbar karena cakupan tahap ini memang sampai Home.
 - Gambar diubah menjadi WebP dengan ukuran terkontrol agar tidak membawa seluruh aset web/3D yang berat ke aplikasi.
-- Workflow GitHub Actions disediakan untuk membuat debug APK tanpa harus membangun langsung di HP. Workflow memakai `android-actions/setup-android@v4` dan hanya meminta `platform-tools`; paket SDK lama bernama `tools` tidak lagi diminta.
+- Compose BOM dipin ke `2025.12.00` (Compose 1.10) agar cocok dengan AGP 8.13.2 dan Android SDK 36. Workflow GitHub Actions disediakan untuk membuat debug APK tanpa harus membangun langsung di HP. Workflow memakai `android-actions/setup-android@v4` dan hanya meminta `platform-tools`; paket SDK lama bernama `tools` tidak lagi diminta.
 
 ## Backend
 
@@ -69,3 +69,8 @@ Untuk mendapatkan SHA-1 debug, jalankan:
 - Login memerlukan internet, Google Play Services/Credential Manager yang berfungsi, konfigurasi OAuth yang sesuai, dan backend aktif.
 - Home saat ini adalah fondasi ringan untuk tahap awal. Avatar 3D berbasis VRM dan layar-layar belajar penuh dari web belum dipindahkan ke native pada versi ini.
 - Tema awal mengikuti tampilan gelap web: `#07070D`, panel `#0F0F17`, dan aksen merah `#E03535`.
+
+
+## Patch kompatibilitas 0.1.2
+
+Error `androidx.compose.runtime:runtime-saveable-android:1.12.0 requires Android Gradle plugin 9.1.0 or higher` diperbaiki dengan memindahkan Compose BOM ke `2025.12.00`, yang menggunakan Compose 1.10. Dependency `core-ktx` dan `activity-compose` juga diselaraskan untuk baseline SDK 36. Detail perubahan ada di `PATCH-NOTES-v0.1.2.md`.
