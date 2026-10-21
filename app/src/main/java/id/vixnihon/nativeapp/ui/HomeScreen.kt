@@ -8,6 +8,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,13 +16,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -54,27 +55,31 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.zIndex
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.sp
 import id.vixnihon.nativeapp.R
 import id.vixnihon.nativeapp.data.AppUser
@@ -219,33 +224,55 @@ fun HomeScreen(
             contentPadding = PaddingValues(bottom = 18.dp)
         ) {
             item {
-                Column {
-                    Box(modifier = Modifier.fillMaxWidth().height(680.dp)) {
-                        HomeHeroNative(
-                            user = user,
-                            firstName = firstName,
-                            isId = isId,
-                            heroDrawable = heroDrawable,
-                            onSettings = { showSettings = true }
+                // The web design uses a ~506px hero and a card overlapping it by 42px.
+                // Measure the real card height, instead of a 680dp fixed viewport + offset.
+                // This keeps the next section directly below the visible card on every device.
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val heroHeight = (maxWidth * 1.28f).coerceIn(480.dp, 540.dp)
+                    val overlap = 42.dp
+                    Layout(
+                        modifier = Modifier.fillMaxWidth(),
+                        content = {
+                            HomeHeroNative(
+                                user = user,
+                                firstName = firstName,
+                                isId = isId,
+                                heroDrawable = heroDrawable,
+                                onSettings = { showSettings = true }
+                            )
+                            ContinueLearningNativeCard(
+                                isId = isId,
+                                learning = learning,
+                                modifier = Modifier.padding(horizontal = 18.dp),
+                                onClick = {
+                                    onNotice(
+                                        if (learning.lesson != null) {
+                                            if (isId) "Materi ${learning.lesson.titleId} siap dibuka. Halaman belajar native akan disambungkan berikutnya." else "${learning.lesson.titleEn} is ready. The native lesson screen will be connected next."
+                                        } else if (isId) "Materi sedang dimuat. Coba lagi sebentar." else "Lessons are loading. Please try again shortly."
+                                    )
+                                }
+                            )
+                        }
+                    ) { measurables, constraints ->
+                        val width = constraints.maxWidth
+                        val heroPx = heroHeight.roundToPx()
+                        val overlapPx = overlap.roundToPx()
+                        val hero = measurables[0].measure(Constraints.fixed(width, heroPx))
+                        val card = measurables[1].measure(
+                            constraints.copy(
+                                minWidth = width,
+                                maxWidth = width,
+                                minHeight = 0,
+                                maxHeight = Constraints.Infinity
+                            )
                         )
-                        ContinueLearningNativeCard(
-                            isId = isId,
-                            learning = learning,
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .offset(y = 35.dp)
-                                .padding(horizontal = 18.dp),
-                            onClick = {
-                                onNotice(
-                                    if (learning.lesson != null) {
-                                        if (isId) "Materi ${learning.lesson.titleId} siap dibuka. Halaman belajar native akan disambungkan berikutnya." else "${learning.lesson.titleEn} is ready. The native lesson screen will be connected next."
-                                    } else if (isId) "Materi sedang dimuat. Coba lagi sebentar." else "Lessons are loading. Please try again shortly."
-                                )
-                            }
-                        )
+                        layout(width, hero.height + card.height - overlapPx) {
+                            hero.placeRelative(0, 0)
+                            card.placeRelative(0, hero.height - overlapPx)
+                        }
                     }
-                    Spacer(Modifier.height(57.dp))
                 }
+                Spacer(Modifier.height(22.dp))
             }
             item {
                 RewardCenterNative(isId = isId, onAction = { action ->
@@ -342,7 +369,12 @@ private fun HomeHeroNative(
     heroDrawable: Int,
     onSettings: () -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val compact = maxWidth < 360.dp
+        val avatarWidth = (maxWidth * 0.61f).coerceIn(188.dp, 264.dp)
+        val avatarHeight = (maxWidth * 0.98f).coerceIn(320.dp, 383.dp)
+        val introWidth = (maxWidth - 36.dp) * (if (compact) 0.51f else 0.55f)
+
         Image(
             painter = painterResource(heroDrawable),
             contentDescription = null,
@@ -353,43 +385,68 @@ private fun HomeHeroNative(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
                     colorStops = arrayOf(
-                        0f to Color(0x0A05050B),
-                        0.30f to Color(0x1805050B),
-                        0.56f to Color(0x6505050B),
-                        0.80f to Color(0xCD07070D),
+                        0f to Color(0x2205050B),
+                        0.30f to Color(0x2905050B),
+                        0.56f to Color(0x3605050B),
+                        0.80f to Color(0xA507070D),
                         1f to NihongoPalette.background
                     )
                 )
             )
         )
+        // A subtle left scrim preserves white-text contrast against the sky.
+        Box(
+            Modifier.fillMaxWidth(0.68f).height(320.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(Color(0x6807070D), Color(0x3507070D), Color.Transparent)
+                    )
+                )
+        )
+
+        // Keep the model BELOW the title and on the right, so head and
+        // shoulders cannot obscure the Japanese heading or greeting.
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(top = 56.dp, end = 0.dp)
-                .width(284.dp)
-                .height(432.dp)
+                .offset(x = 13.dp, y = if (compact) 137.dp else 124.dp)
+                .width(avatarWidth)
+                .height(avatarHeight)
+                .zIndex(1f)
         ) {
             NativeSenseiModel(Modifier.fillMaxSize())
         }
+
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxWidth()
+                .align(Alignment.TopStart)
                 .statusBarsPadding()
                 .padding(horizontal = 18.dp)
                 .padding(top = 22.dp)
+                .zIndex(2f)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
-                Column {
-                    Text("日本語", color = Color.White, fontSize = 42.sp, lineHeight = 45.sp, fontWeight = FontWeight.Black, letterSpacing = 4.sp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "日本語", color = Color.White, fontSize = 42.sp,
+                        lineHeight = 45.sp, fontWeight = FontWeight.Black,
+                        letterSpacing = 4.sp,
+                        style = TextStyle(shadow = Shadow(Color(0xAA000000), Offset(0f, 3f), 10f))
+                    )
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         if (isId) "Nihongo · Belajar Bahasa Jepang" else "Nihongo · Learn Japanese",
-                        color = Color(0xD7FFFFFF), fontSize = 11.5.sp, fontWeight = FontWeight.Bold
+                        color = Color(0xE7FFFFFF), fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        style = TextStyle(shadow = Shadow(Color(0xCC000000), Offset(0f, 2f), 7f))
                     )
                 }
+                Spacer(Modifier.width(10.dp))
                 Box(
                     modifier = Modifier
                         .size(46.dp)
@@ -399,21 +456,32 @@ private fun HomeHeroNative(
                         .clickable(onClick = onSettings),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Outlined.Settings, contentDescription = if (isId) "Pengaturan" else "Settings", tint = Color(0xD7FFFFFF), modifier = Modifier.size(20.dp))
+                    Icon(
+                        Icons.Outlined.Settings,
+                        contentDescription = if (isId) "Pengaturan" else "Settings",
+                        tint = Color(0xD7FFFFFF),
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
-            Spacer(Modifier.height(25.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-                Text("✿", color = NihongoPalette.redLight, fontSize = 19.sp, lineHeight = 25.sp)
-                Column(modifier = Modifier.fillMaxWidth(0.70f)) {
+            Spacer(Modifier.height(26.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.Top) {
+                Text("✿", color = NihongoPalette.redLight, fontSize = 18.sp, lineHeight = 25.sp)
+                Column(modifier = Modifier.width(introWidth)) {
                     Text(
                         if (isId) "Selamat datang kembali, $firstName. Ayo lanjut belajar hari ini." else "Welcome back, $firstName. Let's continue learning today.",
-                        color = Color.White, fontSize = 16.sp, lineHeight = 21.sp, fontWeight = FontWeight.Black
+                        color = Color.White,
+                        fontSize = if (compact) 15.sp else 16.sp,
+                        lineHeight = 21.sp,
+                        fontWeight = FontWeight.Black,
+                        style = TextStyle(shadow = Shadow(Color(0xD6000000), Offset(0f, 3f), 9f))
                     )
-                    Spacer(Modifier.height(7.dp))
+                    Spacer(Modifier.height(8.dp))
                     Text(
                         if (isId) "Pilih materi, latihan, atau tanya Sensei kapan saja." else "Choose lessons, practice, or ask Sensei anytime.",
-                        color = Color(0xD7FFFFFF), fontSize = 12.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold
+                        color = Color(0xEDFFFFFF), fontSize = 12.sp,
+                        lineHeight = 17.sp, fontWeight = FontWeight.SemiBold,
+                        style = TextStyle(shadow = Shadow(Color(0xCC000000), Offset(0f, 2f), 7f))
                     )
                 }
             }
@@ -480,8 +548,10 @@ private fun ContinueLearningNativeCard(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     if (isId) "${learning.chapterDone} dari ${learning.chapterTotal} materi selesai" else "${learning.chapterDone} of ${learning.chapterTotal} lessons complete",
-                    color = NihongoPalette.dim, fontSize = 11.sp, fontWeight = FontWeight.Bold
+                    color = NihongoPalette.dim, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
                 )
+                Spacer(Modifier.width(8.dp))
                 Box(
                     modifier = Modifier.clip(RoundedCornerShape(16.dp))
                         .background(Brush.linearGradient(listOf(NihongoPalette.red, NihongoPalette.redLight)))
@@ -502,20 +572,41 @@ private fun ContinueLearningNativeCard(
 
 @Composable
 private fun RewardCenterNative(isId: Boolean, onAction: (String) -> Unit) {
-    Column {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 18.dp)) {
             Text("Reward Center", color = NihongoPalette.white, fontSize = 20.sp, fontWeight = FontWeight.Black)
             Spacer(Modifier.height(4.dp))
-            Text(if (isId) "Misi, top up, dan log XP/kredit" else "Missions, top up, and XP/credit logs", color = NihongoPalette.dim, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                if (isId) "Misi, top up, dan log XP/kredit" else "Missions, top up, and XP/credit logs",
+                color = NihongoPalette.dim, fontSize = 12.sp, fontWeight = FontWeight.SemiBold
+            )
         }
         Spacer(Modifier.height(14.dp))
+        // 3 equal-weight native shortcuts: no offscreen third card, no 126dp clipping.
+        // Titles/subtitles can wrap, and each card grows with the device font scale.
         Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top
         ) {
-            RewardTile(Modifier.width(126.dp), Icons.Outlined.CardGiftcard, if (isId) "Misi" else "Missions", if (isId) "Klaim XP & kredit" else "Claim XP & credits", Color(0xFF2DB36A), onClick = { onAction("missions") })
-            RewardTile(Modifier.width(126.dp), Icons.Outlined.CreditCard, if (isId) "Beli Kredit" else "Buy Credits", if (isId) "Paket 1.000+" else "1,000+ packs", Color(0xFFE2B957), onClick = { onAction("topup") })
-            RewardTile(Modifier.width(126.dp), Icons.Outlined.History, if (isId) "Riwayat" else "History", if (isId) "Log XP & kredit" else "XP & credit logs", Color(0xFF9C6AFF), onClick = { onAction("history") })
+            RewardTile(
+                Modifier.weight(1f), Icons.Outlined.CardGiftcard,
+                if (isId) "Misi" else "Missions",
+                if (isId) "Klaim XP & kredit" else "Claim XP & credits",
+                Color(0xFF2DB36A), onClick = { onAction("missions") }
+            )
+            RewardTile(
+                Modifier.weight(1f), Icons.Outlined.CreditCard,
+                if (isId) "Beli Kredit" else "Buy Credits",
+                if (isId) "Paket 1.000+" else "1,000+ packs",
+                Color(0xFFE2B957), onClick = { onAction("topup") }
+            )
+            RewardTile(
+                Modifier.weight(1f), Icons.Outlined.History,
+                if (isId) "Riwayat" else "History",
+                if (isId) "Log XP & kredit" else "XP & credit logs",
+                Color(0xFF9C6AFF), onClick = { onAction("history") }
+            )
         }
     }
 }
@@ -530,22 +621,40 @@ private fun RewardTile(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier.height(126.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(27.dp),
+        modifier = modifier.heightIn(min = 156.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(22.dp),
         color = NihongoPalette.surface,
         border = androidx.compose.foundation.BorderStroke(1.dp, NihongoPalette.borderStrong)
     ) {
-        Column(Modifier.padding(horizontal = 14.dp, vertical = 14.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(48.dp).clip(RoundedCornerShape(19.dp)).background(accent.copy(alpha = 0.12f)).border(1.dp, accent.copy(alpha = 0.25f), RoundedCornerShape(19.dp)), contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(24.dp))
+        Column(Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 12.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(36.dp)
+                        .clip(RoundedCornerShape(13.dp))
+                        .background(accent.copy(alpha = 0.12f))
+                        .border(1.dp, accent.copy(alpha = 0.25f), RoundedCornerShape(13.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(19.dp))
                 }
-                Text("›", color = NihongoPalette.dim, fontSize = 27.sp, lineHeight = 27.sp)
+                Text("›", color = NihongoPalette.dim, fontSize = 23.sp, lineHeight = 25.sp)
             }
             Spacer(Modifier.height(12.dp))
-            Text(title, color = NihongoPalette.white, fontSize = 14.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(4.dp))
-            Text(detail, color = NihongoPalette.dim, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                title, color = NihongoPalette.white, fontSize = 12.5.sp,
+                lineHeight = 16.sp, fontWeight = FontWeight.Black,
+                minLines = 2, maxLines = 2
+            )
+            Spacer(Modifier.height(5.dp))
+            Text(
+                detail, color = NihongoPalette.dim, fontSize = 10.sp,
+                lineHeight = 13.sp, fontWeight = FontWeight.SemiBold,
+                minLines = 2, maxLines = 3
+            )
         }
     }
 }

@@ -23,8 +23,11 @@ fun NativeSenseiModel(modifier: Modifier = Modifier) {
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
     val cameraNode = rememberCameraNode(engine) {
-        // The camera targets the character's torso, keeping the full-body model visible in Home.
-        position = Position(x = 0f, y = 0.84f, z = 2.35f)
+        // The GLB spans roughly y=0..1.61m. Aim at its actual centre,
+        // not the world origin (which cut the head off in v0.1.11).
+        // Extra distance keeps hair, hands and shoes within a narrow phone viewport.
+        position = Position(x = 0f, y = 0.80f, z = 2.90f)
+        lookAt(Position(x = 0f, y = 0.80f, z = 0f))
     }
 
     Box(modifier = modifier) {
@@ -42,7 +45,7 @@ fun NativeSenseiModel(modifier: Modifier = Modifier) {
             rememberModelInstance(modelLoader, "models/waifu_native.glb")?.let { instance ->
                 ModelNode(
                     modelInstance = instance,
-                    scaleToUnits = 1.68f,
+                    scaleToUnits = 1.60f,
                     rotation = Rotation(y = 180f),
                     autoAnimate = false
                 )

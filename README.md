@@ -1,6 +1,19 @@
-# NihonGo Native Android — v0.1.11
+# NihonGo Native Android — v0.1.12
 
 Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi web. Situs dipakai sebagai referensi desain dan kontrak API; layar Android dibangun dengan Jetpack Compose dan tidak menampilkan situs melalui WebView.
+
+## Perbaikan Home v0.1.12 — fokus 100% native
+
+Patch ini memperbaiki tampilan **Home** berdasarkan dua screenshot Android dan source halaman Home web asli. Tidak mengubah login, akun, API backend, dan layar lain.
+
+- Kamera Sensei kini diarahkan ke pusat geometri model (Y=0.80m), bukan ke titik nol dunia di lantai; jarak kamera 2.90m dan ukuran karakter 1.60m agar **kepala, tangan dan sepatu** masuk framing. Model GLB tetap dirender dengan **SceneView/Filament native**, bukan WebView.
+- Avatar diletakkan di sisi kanan dan lebih rendah; judul Jepang serta sambutan diprioritaskan di lapisan atas (`zIndex`) dengan bayangan teks/scrim untuk menjaga keterbacaan.
+- Hero tidak lagi memakai **tinggi kaku 680dp**. Tingginya mengikuti lebar layar (480–540dp, sekitar 506dp pada ponsel 395dp), meniru desain web.
+- Kartu **Lanjutkan Belajar** tetap overlap sekitar 42dp di ujung hero, tetapi tinggi kartu **diukur nyata** memakai Compose `Layout`; Reward Center tidak lagi terdorong oleh jarak kosong.
+- **Misi / Beli Kredit / Riwayat** sekarang satu baris tiga kolom `weight(1f)`, bukan `horizontalScroll` dengan kartu 126dp tetap. Judul dan deskripsi boleh membungkus hingga dua/tiga baris, sehingga tidak terpotong secara vertikal/horizontal.
+- Label jumlah materi pada footer kartu diatur dengan `weight` agar tombol **Lanjutkan** tetap tampil pada layar lebih sempit.
+
+**Penting:** ini patch source siap dibuka di Android Studio, bukan APK yang telah divalidasi langsung di perangkat. Lingkungan penyusunan ZIP tidak memiliki Android SDK/Gradle distribusi dan tidak dapat melakukan uji render perangkat. Jalankan build Android Studio/GitHub Actions, lalu uji visual di lebar 320dp, 360dp, 393dp dan font sistem diperbesar 1.3×. Jika tampilan 3D masih berbeda dari web, verifikasi screenshot APK aktual karena renderer native memakai sudut kamera/FOV yang berbeda dari Three.js.
 
 ## Perubahan build v0.1.11
 
@@ -33,7 +46,7 @@ Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi we
 
 ## Dokumentasi perubahan
 
-Catatan patch semua versi ditempatkan rapi di folder [`path-notes/`](path-notes/). Untuk melihat perubahan versi ini, buka [`PATCH-NOTES-v0.1.10.md`](path-notes/PATCH-NOTES-v0.1.10.md). Catatan versi baru berikutnya juga harus disimpan di folder `path-notes/`, bukan di root proyek.
+Catatan patch semua versi ditempatkan rapi di folder [`path-notes/`](path-notes/). Untuk melihat perubahan versi ini, buka [`PATCH-NOTES-v0.1.12.md`](path-notes/PATCH-NOTES-v0.1.12.md). Catatan versi baru berikutnya juga harus disimpan di folder `path-notes/`, bukan di root proyek.
 
 ## Endpoint backend
 
@@ -82,6 +95,7 @@ Untuk build lokal, gunakan JDK 17 dan Android SDK Platform 36, kemudian jalankan
 
 ## Versi
 
+- **0.1.12 / versionCode 13** — frame Sensei, tinggi hero, kartu belajar overlap 42dp dan 3 Reward Center responsif.
 - **0.1.11 / versionCode 12** — menurunkan SceneView ke 4.34.0 karena SceneView 4.52.0 masih membutuhkan compile SDK 37.
 - **0.1.10 / versionCode 11** — menyelaraskan versi SceneView/Compose ke API 36 dan menaikkan Gradle Wrapper ke 8.14.4.
 - **0.1.9 / versionCode 10** — perbaikan SDK CI: compileSdk/platform dikembalikan ke API 36 agar paket SDK tersedia dan cocok dengan toolchain saat ini.
