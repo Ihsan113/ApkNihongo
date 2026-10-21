@@ -329,11 +329,25 @@ fun LoginScreen(
                                         val session = repository.loginWithGoogleIdToken(googleIdToken)
                                         onSignedIn(session)
                                     } catch (error: Exception) {
+                                        android.util.Log.e("NihonGoLogin", "Google sign-in failed", error)
+                                        val credEx = error as? androidx.credentials.exceptions.GetCredentialException
+                                        val detail = "[${error.javaClass.simpleName}] ${error.message.orEmpty()}".take(220)
                                         errorText = when {
                                             error is ApiException -> error.message.orEmpty()
-                                            error.message?.contains("cancel", ignoreCase = true) == true -> if (isId) "Login dibatalkan." else "Sign-in was cancelled."
+                                            error is androidx.credentials.exceptions.GetCredentialCancellationException ||
+                                                error.message?.contains("cancel", ignoreCase = true) == true ->
+                                                if (isId) "Login dibatalkan." else "Sign-in was cancelled."
+                                            error is androidx.credentials.exceptions.NoCredentialException ->
+                                                if (isId) "Tidak ada akun Google yang bisa dipakai. Tambahkan akun Google di Pengaturan HP lalu coba lagi.\n$detail"
+                                                else "No usable Google account found. Add one in system settings and retry.\n$detail"
+                                            error is androidx.credentials.exceptions.GetCredentialProviderConfigurationException ->
+                                                if (isId) "Google Play Services / Credential Manager belum siap. Update Play Services lalu coba lagi.\n$detail"
+                                                else "Google Play Services / Credential Manager is not ready. Update Play Services and retry.\n$detail"
+                                            credEx != null ->
+                                                if (isId) "Login Google ditolak. Biasanya karena OAuth Android client (package + SHA-1) belum cocok.\n$detail"
+                                                else "Google sign-in rejected. Usually the Android OAuth client (package + SHA-1) does not match.\n$detail"
                                             error is java.io.IOException -> error.message.orEmpty().ifBlank { if (isId) "Koneksi internet bermasalah." else "Network error." }
-                                            else -> if (isId) "Login Google gagal. Pastikan Google Play Services aktif lalu coba lagi." else "Google sign-in failed. Check Google Play Services and try again."
+                                            else -> if (isId) "Login Google gagal.\n$detail" else "Google sign-in failed.\n$detail"
                                         }
                                     } finally {
                                         signingIn = false

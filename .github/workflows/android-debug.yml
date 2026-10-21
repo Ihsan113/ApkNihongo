@@ -11,6 +11,11 @@ permissions:
 jobs:
   build-debug-apk:
     runs-on: ubuntu-latest
+    env:
+      NIHONGO_KEYSTORE_PASSWORD: ${{ secrets.NIHONGO_KEYSTORE_PASSWORD }}
+      NIHONGO_KEY_ALIAS: ${{ secrets.NIHONGO_KEY_ALIAS }}
+      NIHONGO_KEY_PASSWORD: ${{ secrets.NIHONGO_KEY_PASSWORD }}
+      EXPECTED_SHA1: 8DDCC406C5790CDDD49D2F38FA45EE400CBC589E
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
@@ -26,8 +31,26 @@ jobs:
           packages: 'platform-tools'
       - name: Install Android platform and build tools
         run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
+      - name: Siapkan keystore dari GitHub Secrets
+        env:
+          KEYSTORE_BASE64: ${{ secrets.NIHONGO_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/nihongo.keystore"
+            echo "NIHONGO_KEYSTORE_PATH=$RUNNER_TEMP/nihongo.keystore" >> "$GITHUB_ENV"
+            echo "Keystore dari Secrets dipakai."
+          else
+            echo "::warning::Secret NIHONGO_KEYSTORE_BASE64 belum diset - pakai app/debug.keystore (SHA-1 TIDAK akan sama dengan yang terdaftar)."
+          fi
       - name: Build debug APK
         run: ./gradlew --no-daemon :app:assembleDebug
+      - name: Cek SHA-1 sertifikat APK
+        run: |
+          APKSIGNER=$(ls $ANDROID_HOME/build-tools/*/apksigner | tail -1)
+          ACTUAL=$($APKSIGNER verify --print-certs app/build/outputs/apk/debug/app-debug.apk | grep -i "SHA-1" | head -1 | sed 's/.*: *//' | tr -d ': ' | tr a-f A-F)
+          echo "SHA-1 APK    : $ACTUAL"
+          echo "SHA-1 diharap: $EXPECTED_SHA1"
+          if [ "$ACTUAL" = "$EXPECTED_SHA1" ]; then echo "COCOK"; else echo "::warning::SHA-1 APK TIDAK cocok dengan yang terdaftar."; fi
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:

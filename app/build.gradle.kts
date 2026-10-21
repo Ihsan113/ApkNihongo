@@ -14,19 +14,39 @@ android {
         applicationId = "id.vixnihon.nativeapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.1.4"
+        versionCode = 7
+        versionName = "0.1.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
 
+    signingConfigs {
+        // Keystore tetap. Di GitHub Actions diisi dari Secrets (lihat workflow);
+        // kalau tidak ada, jatuh ke app/debug.keystore supaya build lokal tetap jalan.
+        create("shared") {
+            val ksPath = System.getenv("NIHONGO_KEYSTORE_PATH")
+            if (!ksPath.isNullOrBlank() && file(ksPath).exists()) {
+                storeFile = file(ksPath)
+                storePassword = System.getenv("NIHONGO_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("NIHONGO_KEY_ALIAS")
+                keyPassword = System.getenv("NIHONGO_KEY_PASSWORD")
+            } else {
+                storeFile = file("debug.keystore")
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
+    }
+
     buildTypes {
         debug {
-            applicationIdSuffix = ".debug"
+            signingConfig = signingConfigs.getByName("shared")
             versionNameSuffix = "-debug"
         }
         release {
+            signingConfig = signingConfigs.getByName("shared")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
