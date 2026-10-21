@@ -136,6 +136,7 @@ internal fun NativeSettingsScreen(
                         SettingsFloatSlider(if (id) "Volume suara" else "Voice volume", preferences.speechVolume, 0f, 1f) { onPreferencesChange(preferences.copy(speechVolume = it)) }
                         Text(if (id) "Memakai Text-to-speech Android. Untuk suara Jepang, instal data suara Japanese di pengaturan HP jika belum ada." else "Uses Android Text-to-speech; install a Japanese voice in your device settings if needed.", color = NihongoPalette.dim, fontSize = 11.sp)
                     } }
+                    item { NativeVoiceTestPanel(id, preferences) }
                     item { SettingsSectionTitle(if (id) "MIKROFON" else "MICROPHONE") }
                     item { SettingsInfo("Mic Premium", if (id) "Web memakai Groq Whisper untuk input suara. Fitur percakapan mic native akan menyusul di layar Sensei; belum aktif dari halaman Pengaturan." else "The web uses Groq Whisper. Native microphone conversation is not yet available in Settings.") }
                 }
@@ -194,7 +195,7 @@ internal fun NativeSettingsScreen(
                 }
                 "about" -> {
                     item { SettingsInfo("Nihongo App", if (id) "Aplikasi belajar bahasa Jepang bertahap: materi, kuis, review, flashcard, dan bantuan Sensei." else "Step-by-step Japanese learning app with lessons, quizzes, flashcards and Sensei.") }
-                    item { SettingsInfo("Developer", "Brand: DanzKu\nVersi native: 0.1.15\nNihongo bukan aplikasi resmi JLPT atau Japan Foundation.") }
+                    item { SettingsInfo("Developer", "Brand: DanzKu\nVersi native: 0.1.16\nNihongo bukan aplikasi resmi JLPT atau Japan Foundation.") }
                 }
                 "faq" -> {
                     item { SettingsInfo(if (id) "Apakah kredit permanen?" else "Are credits permanent?", if (id) "Ya, selama akun aktif dan tidak dihapus." else "Yes, while your account is active.") }
@@ -319,4 +320,78 @@ private fun SettingsActionButton(text: String, danger: Boolean = false, enabled:
         Modifier.fillMaxWidth().background(if (danger) Color(0x382F171C) else NihongoPalette.red, RoundedCornerShape(16.dp))
             .clickable(enabled = enabled, onClick = onClick).padding(15.dp), contentAlignment = Alignment.Center
     ) { Text(text, color = if (enabled) (if (danger) NihongoPalette.redSoft else Color.White) else NihongoPalette.dim, fontWeight = FontWeight.Black, fontSize = 13.sp) }
+}
+
+/** Self-test runs only when tapped. Unlike the Home greeting, it stays silent
+ * until requested and prints the engine/language/audio failure separately. */
+@Composable
+private fun NativeVoiceTestPanel(id: Boolean, preferences: NativeUserPreferences) {
+    val context = LocalContext.current
+    var report by remember { mutableStateOf<NativeSpeechInfo?>(null) }
+    var speaking by remember { mutableStateOf(false) }
+    var session by remember { mutableStateOf<NativeJapaneseTts?>(null) }
+
+    DisposableEffect(Unit) {
+        onDispose { session?.close() }
+    }
+
+    SettingsContentCard {
+        Text(if (id) "Tes suara Jepang" else "Japanese voice test",
+            color = NihongoPalette.white, fontSize = 14.sp, fontWeight = FontWeight.Black)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            if (id) "Tes ini memeriksa mesin TTS, dukungan bahasa Jepang, dan pemutaran. Tidak perlu menyalakan sapaan otomatis untuk mengetes."
+            else "This test checks TTS initialization, Japanese language support and audio output. Auto greeting need not be enabled.",
+            color = NihongoPalette.dim, fontSize = 12.sp
+        )
+        Spacer(Modifier.height(12.dp))
+        SettingsActionButton(if (id) "▶ Tes suara: こんにちは" else "▶ Test voice: こんにちは") {
+            session?.close()
+            speaking = false
+            report = NativeSpeechInfo(NativeSpeechPhase.INITIALIZING,
+                if (id) "Memulai mesin suara…" else "Starting speech engine…")
+            val tester = NativeJapaneseTts(
+                context = context,
+                onStatus = { next ->
+                    report = next
+                    if (next.phase == NativeSpeechPhase.READY) {
+                        session?.speak(
+                            "こんにちは。日本語の音声テストです。今日も頑張りましょう。",
+                            preferences.speechRate, preferences.speechPitch, preferences.speechVolume
+                        )
+                    }
+                },
+                onSpeaking = { speaking = it }
+            )
+            session = tester
+            tester.start()
+        }
+        if (report != null) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                if (speaking) (if (id) "Sedang berbicara…" else "Speaking…")
+                    else report?.message.orEmpty(),
+                color = if (report?.phase == NativeSpeechPhase.READY) NihongoPalette.gold
+                    else if (report?.phase == NativeSpeechPhase.INITIALIZING) NihongoPalette.dim
+                    else NihongoPalette.redSoft,
+                fontSize = 12.sp, lineHeight = 18.sp
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        SettingsActionButton(if (id) "Buka pengaturan TTS HP" else "Open device TTS settings") {
+            // Most Android flavors expose this action, but not every AOSP ROM.
+            // If no speech settings screen exists, fall back to system Settings.
+            runCatching {
+                context.startActivity(Intent("com.android.settings.TTS_SETTINGS"))
+            }.onFailure {
+                runCatching { context.startActivity(Intent(android.provider.Settings.ACTION_SETTINGS)) }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            if (id) "Jika mesin Google sudah dipilih tetapi tes gagal: buka ikon roda gigi di setelan TTS HP, pasang data suara Jepang, periksa volume MEDIA, lalu kembali dan ulangi tes. ROM AOSP tertentu mungkin tidak menyertakan mesin TTS yang bisa dipakai."
+            else "If Google is selected but this test fails, open its gear icon in TTS settings, download Japanese voice data, check MEDIA volume, then retry. Some AOSP builds have no usable TTS engine.",
+            color = NihongoPalette.dim, fontSize = 11.sp, lineHeight = 16.sp
+        )
+    }
 }

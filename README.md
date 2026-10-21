@@ -1,8 +1,12 @@
-# NihonGo Native Android — v0.1.15
+# NihonGo Native Android — v0.1.16
 
 Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi web. Situs dipakai sebagai referensi desain dan kontrak API; layar Android dibangun dengan Jetpack Compose dan tidak menampilkan situs melalui WebView.
 
-## Home + Pengaturan Pengguna v0.1.15 (current)
+## Perbaikan Suara Sensei v0.1.16 (current)
+
+Base **v0.1.15**. Memperbaiki visibilitas `TextToSpeech` Android 11+ pada manifest; inisialisasi TTS lebih defensif (main-thread callbacks, alternate installed engine once, pemeriksaan Japanese, output MEDIA), dan menambah **tes suara** serta jalan pintas Setelan TTS dari **Pengaturan → Suara & Mic**. Sapaan Jepang Home dan idle phrase hanya aktif saat Home/aktivitas foreground. Belum ada lip-sync atau audio engine bawaan. Lihat [`path-notes/PATCH-NOTES-v0.1.16.md`](path-notes/PATCH-NOTES-v0.1.16.md) untuk diagnosis dan skenario uji. **Belum diverifikasi build atau playback pada Android fisik.**
+
+## Home + Pengaturan Pengguna v0.1.15
 
 Base proyek adalah ZIP **v0.1.14**. Berdasar dua screenshot terbaru, avatar Home diperbesar (kamera native jarak 1.92m), glow/backdrop diselaraskan, dan suara Jepang otomatis (sambutan + idle 10–15 detik) dinyalakan seperti web. Android TTS butuh dukungan bahasa Japanese di perangkat; keterbatasan VRM lip-sync dijelaskan di catatan patch.
 
