@@ -35,7 +35,8 @@ internal data class NativeSpeechInfo(val phase: NativeSpeechPhase, val message: 
 internal class NativeJapaneseTts(
     context: Context,
     private val onStatus: (NativeSpeechInfo) -> Unit,
-    private val onSpeaking: (Boolean) -> Unit = {}
+    private val onSpeaking: (Boolean) -> Unit = {},
+    private val onViseme: (Int) -> Unit = {}
 ) {
     private val applicationContext = context.applicationContext
     private val main = Handler(Looper.getMainLooper())
@@ -44,6 +45,8 @@ internal class NativeJapaneseTts(
     private var generation = 0
     private var fallbackAttempted = false
     private var utteranceNumber = 0L
+    private var activeUtterance = ""
+    private var activeText = ""
 
     var ready: Boolean = false
         private set
@@ -141,17 +144,26 @@ internal class NativeJapaneseTts(
         local.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {
                 main.post {
-                    if (!closed && attemptId == generation) {
+                    if (!closed && attemptId == generation && utteranceId == activeUtterance) {
                         speaking = true
                         onSpeaking(true)
+                        onViseme(6) // speech started but this TTS may not emit per-mora ranges
                     }
                 }
             }
             override fun onDone(utteranceId: String?) {
                 main.post {
-                    if (!closed && attemptId == generation) {
+                    if (!closed && attemptId == generation && utteranceId == activeUtterance) {
                         speaking = false
                         onSpeaking(false)
+                        onViseme(0)
+                    }
+                }
+            }
+            override fun onRangeStart(utteranceId: String?, start: Int, end: Int, frame: Int) {
+                main.post {
+                    if (!closed && attemptId == generation && utteranceId == activeUtterance) {
+                        onViseme(japaneseVowelAt(activeText, start, end))
                     }
                 }
             }
@@ -171,6 +183,7 @@ internal class NativeJapaneseTts(
                 ready = false
                 speaking = false
                 onSpeaking(false)
+                onViseme(0)
                 onStatus(NativeSpeechInfo(NativeSpeechPhase.AUDIO_ERROR,
                     "Mesin TTS terbuka, tetapi gagal menghasilkan audio. Periksa volume media dan paket suara Jepang, lalu tes ulang."))
                 ++generation
@@ -189,7 +202,10 @@ internal class NativeJapaneseTts(
             val options = Bundle().apply {
                 putFloat(TextToSpeech.Engine.KEY_PARAM_VOLUME, volume.coerceIn(0f, 1f))
             }
-            local.speak(text, TextToSpeech.QUEUE_FLUSH, options, "nihongo-ja-${++utteranceNumber}")
+            val utteranceId = "nihongo-ja-${++utteranceNumber}"
+            activeUtterance = utteranceId
+            activeText = text
+            local.speak(text, TextToSpeech.QUEUE_FLUSH, options, utteranceId)
         }.getOrDefault(TextToSpeech.ERROR)
         if (speedResult != TextToSpeech.SUCCESS) {
             reportAudioFailure(generation)
@@ -205,6 +221,7 @@ internal class NativeJapaneseTts(
         ready = false
         speaking = false
         onSpeaking(false)
+        onViseme(0)
         tts?.runCatching { stop(); shutdown() }
         tts = null
     }
@@ -221,10 +238,12 @@ internal fun NativeHomeSpeech(
     pitch: Float = 1f,
     volume: Float = 1f,
     onSpeaking: (Boolean) -> Unit = {},
+    onViseme: (Int) -> Unit = {},
     onUnavailable: (String) -> Unit = {}
 ) {
     val context = LocalContext.current.applicationContext
     val currentSpeaking = rememberUpdatedState(onSpeaking)
+    val currentViseme = rememberUpdatedState(onViseme)
     val currentUnavailable = rememberUpdatedState(onUnavailable)
     var currentSession by remember { mutableStateOf<NativeJapaneseTts?>(null) }
     var sessionReady by remember { mutableStateOf(false) }
@@ -233,6 +252,7 @@ internal fun NativeHomeSpeech(
     DisposableEffect(context, enabled) {
         if (!enabled) {
             currentSpeaking.value(false)
+            currentViseme.value(0)
             onDispose { }
         } else {
             val session = NativeJapaneseTts(
@@ -243,7 +263,8 @@ internal fun NativeHomeSpeech(
                         currentUnavailable.value(state.message)
                     }
                 },
-                onSpeaking = { currentSpeaking.value(it) }
+                onSpeaking = { currentSpeaking.value(it) },
+                onViseme = { currentViseme.value(it) }
             )
             currentSession = session
             session.start()
@@ -279,5 +300,24 @@ internal fun NativeHomeSpeech(
             lastPhrase = nextPhrase
             session.speak(phrases[nextPhrase], rate, pitch, volume)
         }
+    }
+}
+
+/** Translate kana to VRM A/I/U/E/O morph slots. Returns 0 for silence.
+ * TTS callbacks are best-effort; some engines never send onRangeStart.
+ */
+private fun japaneseVowelAt(text: String, start: Int, end: Int): Int {
+    if (text.isEmpty()) return 1
+    val at = (end - 1).coerceIn(0, text.lastIndex)
+    val c0 = text[at]
+    val c = if (c0 in 'ァ'..'ヶ') (c0.code - 0x60).toChar() else c0
+    return when (c) {
+        in "あかがさざただなはばぱまやゃらわぁ" -> 1
+        in "いきぎしじちぢにひびぴみりぃ" -> 2
+        in "うくぐすずつづぬふぶぷむゆゅるぅ" -> 3
+        in "えけげせぜてでねへべぺめれぇ" -> 4
+        in "おこごそぞとどのほぼぽもよょろをぉ" -> 5
+        'ん', 'っ', '、', '。', '！', '？' -> 0
+        else -> 1 // Kanji/romaji: use subtle open mouth until the next mora.
     }
 }

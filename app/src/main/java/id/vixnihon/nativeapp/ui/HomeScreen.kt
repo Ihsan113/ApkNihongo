@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -63,6 +64,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -91,6 +93,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.sp
 import id.vixnihon.nativeapp.R
 import id.vixnihon.nativeapp.data.AppUser
@@ -198,8 +201,16 @@ fun HomeScreen(
     var refreshError by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableStateOf(0) }
     var destination by remember { mutableStateOf<String?>(null) }
-    val listState = rememberLazyListState()
-    val isHomeTopVisible = destination == null && listState.firstVisibleItemIndex == 0
+    // The Home is only a handful of sections. Keep the 3D renderer in the composition
+    // while scrolling through Rewards / Stats so returning to the hero does not
+    // re-create a 6.5 MB GLB and a Filament context during a fling.
+    val homeScrollState = rememberScrollState()
+    val visibleHeroLimit = with(LocalDensity.current) { 540.dp.roundToPx() }
+    val renderSensei by remember(homeScrollState, visibleHeroLimit) {
+        derivedStateOf {
+            homeScrollState.value < visibleHeroLimit && !homeScrollState.isScrollInProgress
+        }
+    }
     var settings by remember { mutableStateOf(NativeSettingsStorage.load(context)) }
     val systemDark = isSystemInDarkTheme()
     val lightTheme = when (settings.theme) {
@@ -211,6 +222,7 @@ fun HomeScreen(
     BackHandler(enabled = showSettings) { showSettings = false }
 
     var senseiSpeaking by remember { mutableStateOf(false) }
+    var senseiViseme by remember { mutableIntStateOf(0) }
     var voiceUnavailable by remember { mutableStateOf("") }
     var appIsForeground by remember { mutableStateOf(true) }
     val lifecycle = remember(context) { findNativeLifecycleOwner(context) }
@@ -233,6 +245,7 @@ fun HomeScreen(
         enabled = settings.speechEnabled && destination == null && !showSettings && appIsForeground,
         rate = settings.speechRate, pitch = settings.speechPitch, volume = settings.speechVolume,
         onSpeaking = { senseiSpeaking = it },
+        onViseme = { senseiViseme = it },
         onUnavailable = { error -> if (voiceUnavailable != error) { voiceUnavailable = error; onNotice(error) } }
     )
     var clockTick by remember { mutableIntStateOf(0) }
@@ -309,12 +322,11 @@ fun HomeScreen(
                 onNavigate = { destination = it }, onNotice = onNotice
             )
         } else {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(bottom = 18.dp)
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth()
+                .verticalScroll(homeScrollState)
+                .padding(bottom = 18.dp)
         ) {
-            item {
                 // The web design uses a ~506px hero and a card overlapping it by 42px.
                 // Measure the real card height, instead of a 680dp fixed viewport + offset.
                 // This keeps the next section directly below the visible card on every device.
@@ -330,7 +342,10 @@ fun HomeScreen(
                                 firstName = firstName,
                                 isId = isId,
                                 heroDrawable = heroDrawable,
-                                onSettings = { showSettings = true }
+                                onSettings = { showSettings = true },
+                                speaking = senseiSpeaking,
+                                viseme = senseiViseme,
+                                renderActive = renderSensei
                             )
                             ContinueLearningNativeCard(
                                 isId = isId,
@@ -362,14 +377,10 @@ fun HomeScreen(
                     }
                 }
                 Spacer(Modifier.height(22.dp))
-            }
-            item {
-                RewardCenterNative(isId = isId, onAction = { action ->
+            RewardCenterNative(isId = isId, onAction = { action ->
                     destination = action
                 })
                 Spacer(Modifier.height(25.dp))
-            }
-            item {
                 WeeklyStatisticsNative(
                     isId = isId,
                     stats = stats,
@@ -381,7 +392,6 @@ fun HomeScreen(
                     onRetry = { refreshKey++ },
                     refreshError = refreshError
                 )
-            }
         }
 
         NativeBottomNav(
@@ -408,7 +418,10 @@ private fun HomeHeroNative(
     firstName: String,
     isId: Boolean,
     heroDrawable: Int,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    speaking: Boolean,
+    viseme: Int,
+    renderActive: Boolean
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 360.dp
@@ -471,7 +484,12 @@ private fun HomeHeroNative(
                 .height(avatarHeight)
                 .zIndex(1f)
         ) {
-            NativeSenseiModel(Modifier.fillMaxSize())
+            NativeSenseiModel(
+                modifier = Modifier.fillMaxSize(),
+                speaking = speaking,
+                viseme = viseme,
+                renderActive = renderActive
+            )
         }
 
         Column(

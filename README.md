@@ -1,8 +1,14 @@
-# NihonGo Native Android — v0.1.16
+# NihonGo Native Android — v0.1.17
 
 Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi web. Situs dipakai sebagai referensi desain dan kontrak API; layar Android dibangun dengan Jetpack Compose dan tidak menampilkan situs melalui WebView.
 
-## Perbaikan Suara Sensei v0.1.16 (current)
+## Lip Sync VRM + optimasi scroll Home v0.1.17 (current)
+
+Base v0.1.16. Model `waifu_native.glb` memang menyediakan VRM A/I/U/E/O sebagai morph targets 32–36 dan blink pada indeks 12 di mesh Face. Renderer Filament sekarang menulis bobot morph mesh Face ketika Android TTS berbicara; `onRangeStart` TTS memetakan kana jika engine mendukung, dan saat tidak tersedia model membuat bukaan mulut ritmis selama ucapan. Ini **lip-sync perkiraan berbasis TTS callback**, bukan sinkronisasi audio fonem-presisi.
+
+Home hanya berisi beberapa komponen, maka LazyColumn diganti dengan Column.verticalScroll supaya GLB/renderer **tidak dilepas/dibuat ulang** ketika pengguna kembali scroll dari Reward/Stats ke Hero. SceneView tetap GPU-accelerated (Filament) dengan `isRendering=false` saat idle, scroll, dan Hero tidak terlihat; rendering hidup selama load awal, TTS berbicara, dan 160ms sesudahnya untuk menutup mulut. Tidak menggunakan WebView, tidak mengubah gambar/tekstur, data backend, login, atau pengaturan admin. Detail [`path-notes/PATCH-NOTES-v0.1.17.md`](path-notes/PATCH-NOTES-v0.1.17.md). Build APK dan pengujian 60fps fisik masih diperlukan.
+
+## Perbaikan Suara Sensei v0.1.16
 
 Base **v0.1.15**. Memperbaiki visibilitas `TextToSpeech` Android 11+ pada manifest; inisialisasi TTS lebih defensif (main-thread callbacks, alternate installed engine once, pemeriksaan Japanese, output MEDIA), dan menambah **tes suara** serta jalan pintas Setelan TTS dari **Pengaturan → Suara & Mic**. Sapaan Jepang Home dan idle phrase hanya aktif saat Home/aktivitas foreground. Belum ada lip-sync atau audio engine bawaan. Lihat [`path-notes/PATCH-NOTES-v0.1.16.md`](path-notes/PATCH-NOTES-v0.1.16.md) untuk diagnosis dan skenario uji. **Belum diverifikasi build atau playback pada Android fisik.**
 
