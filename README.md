@@ -1,8 +1,14 @@
-# NihonGo Native Android — v0.1.18
+# NihonGo Native Android — v0.1.19
 
 Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi web. Situs dipakai sebagai referensi desain dan kontrak API; layar Android dibangun dengan Jetpack Compose dan tidak menampilkan situs melalui WebView.
 
-## Animasi Sensei lebih hidup + framing web v0.1.18 (current)
+## Gestur tangan Home mengikuti source web v0.1.19 (current)
+
+Base **v0.1.18**. Hanya gerak lengan/tangan Sensei yang diperbaiki dari referensi `client/src/components/SenseiAvatar.jsx`: mengganti lambaian tangan kanan besar dengan 4 gestur bicara pendek, transisi halus, micro-motion pergelangan, dan `presentLesson` sesekali saat idle. GLB sudah memakai pose dasar tangan yang sama dengan web, maka native hanya menambahkan delta rotasi yang dikonversi dari radian Three.js ke derajat SceneView. **Tidak mengubah kamera, UI Home, TTS, animasi muka/kepala, scroll, Pengaturan, atau admin.**
+
+Sumber rinci dan validasi di [`path-notes/PATCH-NOTES-v0.1.19.md`](path-notes/PATCH-NOTES-v0.1.19.md). Animasi Kotlin murni telah diuji; compile APK dan kesamaan gerak di perangkat masih perlu dicek.
+
+## Animasi Sensei lebih hidup + framing web v0.1.18 (historis)
 
 Base **v0.1.17**. Komposisi avatar di hero diperbesar menjadi 76% lebar layar dengan kamera lebih dekat dan framing kepala lebih tinggi, agar proporsi wajah dan torso mendekati screenshot Chrome rujukan. Karakter tetap berada di bawah teks sehingga sapaan terbaca, kaki sengaja dapat terpotong di area Continue Learning.
 

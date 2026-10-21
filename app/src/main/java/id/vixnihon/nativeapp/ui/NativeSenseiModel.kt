@@ -6,8 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberUpdatedState
 import kotlin.math.abs
 import kotlin.math.sin
-import kotlin.math.max
-import kotlin.math.min
 import androidx.compose.ui.Modifier
 import io.github.sceneview.SceneView
 import io.github.sceneview.SurfaceType
@@ -107,11 +105,12 @@ fun NativeSenseiModel(
                         val rightLowerArm = joint("J_Bip_R_LowerArm")
                         val leftHand = joint("J_Bip_L_Hand")
                         val rightHand = joint("J_Bip_R_Hand")
+                        // Gestures copied from the web SenseiAvatar.jsx rather than
+                        // the exaggerated right-arm wave from v0.1.18.
+                        val webHands = WebHomeHandMotion()
                         var lastNanos = 0L
                         var previousFrame = 0L
                         var motionSeconds = 0.0
-                        var previousTalking = false
-                        var speechBeganAt = 0.0
                         onFrame = { nanos ->
                             // Smooth 60Hz facial/hand gestures while speaking or during
                             // the short greeting; cheaper ~30Hz bone updates during idle.
@@ -128,25 +127,9 @@ fun NativeSenseiModel(
                                 motionSeconds += delta / 1_000_000_000.0
                                 val t = motionSeconds
                                 val talking = speakingNow.value
-                                if (talking && !previousTalking) speechBeganAt = t
-                                previousTalking = talking
-                                val talkTime = (t - speechBeganAt).coerceAtLeast(0.0)
-                                // Friendly greeting when model first appears. A mild
-                                // occasional gesture during idle gives an anime-like feel.
-                                // Smooth sine envelope avoids abrupt start/end poses.
-                                fun pulse(age: Double, start: Double, duration: Double): Float {
-                                    val phase = (age - start) / duration
-                                    return if (phase < 0.0 || phase > 1.0) 0f
-                                    else (sin(Math.PI * phase).coerceAtLeast(0.0)).toFloat()
-                                }
-                                val greet = pulse(t, 0.65, 2.2) * 0.90f
-                                val idleCycle = t % 11.5
-                                val idleGesture = pulse(idleCycle, 5.3, 2.8) * 0.18f
-                                val voiceGesture = if (talking) {
-                                    val start = min(1f, (talkTime / 0.28).toFloat())
-                                    start * (0.60f + 0.18f * sin(talkTime * 3.1).toFloat())
-                                } else 0f
-                                val gesture = max(greet + idleGesture, voiceGesture).coerceIn(0f, 1f)
+                                // Web HOME_GESTURES and TALK_GESTURES, preserving the GLB
+                                // idle pose. No raised welcome wave exists in the web.
+                                webHands.advance(t, delta / 1_000_000_000.0, talking)
                                 val breathe = sin(t * 2.0).toFloat()
                                 val sway = sin(t * 0.7).toFloat()
                                 val secondSway = sin(t * 0.48 + 0.7).toFloat()
@@ -160,18 +143,15 @@ fun NativeSenseiModel(
                                     z = 1.15f * sin(t * 0.62).toFloat())
                                 leftShoulder?.pose(z = 0.7f * breathe)
                                 rightShoulder?.pose(z = -0.7f * breathe)
-                                // Mirror the two arms so the character never gets a
-                                // dislocated posture. The right arm gives a short wave,
-                                // while the left hand supports conversational gestures.
-                                rightUpperArm?.pose(x = -4f * gesture,
-                                    z = 72f * gesture - 1.0f * sway)
-                                rightLowerArm?.pose(x = -5f * gesture,
-                                    z = 78f * gesture)
-                                rightHand?.pose(z = 12f * gesture * sin(t * 6.8).toFloat())
-                                leftUpperArm?.pose(x = -3f * voiceGesture,
-                                    z = 7f * voiceGesture + 0.9f * sway)
-                                leftLowerArm?.pose(z = 6f * voiceGesture)
-                                leftHand?.pose(z = -2.5f * voiceGesture)
+                                // Pose deltas are based on the identical idle rotations
+                                // already baked into the GLB. Six joints only; head,
+                                // torso, lip-sync and GPU scroll lifecycle are unchanged.
+                                leftUpperArm?.pose(webHands.degrees(0), webHands.degrees(1), webHands.degrees(2))
+                                rightUpperArm?.pose(webHands.degrees(3), webHands.degrees(4), webHands.degrees(5))
+                                leftLowerArm?.pose(webHands.degrees(6), webHands.degrees(7), webHands.degrees(8))
+                                rightLowerArm?.pose(webHands.degrees(9), webHands.degrees(10), webHands.degrees(11))
+                                leftHand?.pose(webHands.degrees(12), webHands.degrees(13), webHands.degrees(14))
+                                rightHand?.pose(webHands.degrees(15), webHands.degrees(16), webHands.degrees(17))
 
                                 if (face != null) {
                                     weights.fill(0f)
