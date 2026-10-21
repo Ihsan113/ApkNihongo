@@ -425,8 +425,8 @@ private fun HomeHeroNative(
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 360.dp
-        val avatarWidth = maxWidth * 0.66f
-        val avatarHeight = 432.dp
+        val avatarWidth = maxWidth * 0.76f
+        val avatarHeight = 470.dp
         val introWidth = (maxWidth - 36.dp) * 0.58f
 
         Image(
@@ -479,7 +479,7 @@ private fun HomeHeroNative(
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .offset(x = 16.dp, y = 50.dp)
+                .offset(x = 12.dp, y = 30.dp)
                 .width(avatarWidth)
                 .height(avatarHeight)
                 .zIndex(1f)

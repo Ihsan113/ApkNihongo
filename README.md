@@ -1,8 +1,14 @@
-# NihonGo Native Android — v0.1.17
+# NihonGo Native Android — v0.1.18
 
 Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi web. Situs dipakai sebagai referensi desain dan kontrak API; layar Android dibangun dengan Jetpack Compose dan tidak menampilkan situs melalui WebView.
 
-## Lip Sync VRM + optimasi scroll Home v0.1.17 (current)
+## Animasi Sensei lebih hidup + framing web v0.1.18 (current)
+
+Base **v0.1.17**. Komposisi avatar di hero diperbesar menjadi 76% lebar layar dengan kamera lebih dekat dan framing kepala lebih tinggi, agar proporsi wajah dan torso mendekati screenshot Chrome rujukan. Karakter tetap berada di bawah teks sehingga sapaan terbaca, kaki sengaja dapat terpotong di area Continue Learning.
+
+GLB sumber tidak mengandung animasi bawaan, tetapi tulang VRM (kepala, leher, dada, bahu, lengan atas/bawah, telapak) tersedia. Animasi **procedural native** sekarang mencakup napas, gerak kepala, sapaan tangan saat pertama muncul, gestur saat berbicara, sesekali gerak tangan saat idle, dan blink ketika diam maupun berbicara. Rotasi tulang selalu diterapkan relatif pada pose dasar sehingga tidak bergeser dari waktu ke waktu. Morph A/I/U/E/O TTS dari v0.1.17 tetap digunakan. Filament diparkir selama Home scroll/offscreen, tetapi hero yang tampak diam menggerakkan model agar tidak terlihat statis. Loop tulang adaptif: hingga 60Hz saat bicara/sapaan, sekitar 30Hz saat diam. Baca `path-notes/PATCH-NOTES-v0.1.18.md` untuk detail serta keterbatasan. **Visual dan FPS perangkat masih harus diuji setelah build GitHub Actions.**
+
+## Lip Sync VRM + optimasi scroll Home v0.1.17
 
 Base v0.1.16. Model `waifu_native.glb` memang menyediakan VRM A/I/U/E/O sebagai morph targets 32–36 dan blink pada indeks 12 di mesh Face. Renderer Filament sekarang menulis bobot morph mesh Face ketika Android TTS berbicara; `onRangeStart` TTS memetakan kana jika engine mendukung, dan saat tidak tersedia model membuat bukaan mulut ritmis selama ucapan. Ini **lip-sync perkiraan berbasis TTS callback**, bukan sinkronisasi audio fonem-presisi.
 
