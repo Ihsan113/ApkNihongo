@@ -154,12 +154,14 @@ fun NihongoRoot(
                 if (currentUser == null || token.isNullOrBlank()) {
                     LaunchedEffect(stage) { stage = NativeStage.Login }
                 } else {
-                    HomeWebView(
+                    HomeScreen(
                         user = currentUser,
-                        token = token.orEmpty(),
+                        authToken = token.orEmpty(),
+                        repository = repository,
                         language = language,
                         onLogout = ::logOut,
-                        onLanguageChange = ::setLanguage
+                        onToggleLanguage = ::switchLanguage,
+                        onNotice = { message -> scope.launch { snackbarHostState.showSnackbar(message) } }
                     )
                 }
             }

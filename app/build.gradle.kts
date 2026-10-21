@@ -8,14 +8,14 @@ plugins {
 
 android {
     namespace = "id.vixnihon.nativeapp"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "id.vixnihon.nativeapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.1.7"
+        versionCode = 9
+        versionName = "0.1.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -90,6 +90,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3:1.4.0")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation("io.github.sceneview:sceneview:4.60.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.datastore:datastore-preferences:1.2.1")

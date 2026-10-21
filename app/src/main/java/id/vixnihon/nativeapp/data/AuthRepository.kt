@@ -8,6 +8,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
 
 class ApiException(message: String, val statusCode: Int? = null) : Exception(message)
@@ -51,6 +53,17 @@ class AuthRepository {
     /** The web client warms this endpoint on sign-in; failure must not block a valid session. */
     suspend fun warmProgress(token: String) = withContext(Dispatchers.IO) {
         request("/api/progress", token = token)
+    }
+
+    /** Read the authenticated progress map for the native Learn/Home experience. */
+    suspend fun fetchProgress(token: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/progress", token = token)
+    }
+
+    /** Read server-authoritative XP, level, credits, accuracy, streak and seven-day activity. */
+    suspend fun fetchWeeklyStats(token: String, language: String): JSONObject = withContext(Dispatchers.IO) {
+        val encodedLanguage = URLEncoder.encode(language, StandardCharsets.UTF_8.name())
+        request("/api/stats/weekly?lang=$encodedLanguage", token = token)
     }
 
     private fun request(
