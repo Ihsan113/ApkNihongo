@@ -29,8 +29,8 @@ jobs:
         with:
           # Do not request the deprecated Google SDK package named 'tools'.
           packages: 'platform-tools'
-      - name: Install Android platform and build tools
-        run: sdkmanager --install "platforms;android-37" "build-tools;36.0.0"
+      - name: Install Android SDK Platform 36 and Build Tools 36
+        run: sdkmanager --install "platforms;android-36" "build-tools;36.0.0"
       - name: Siapkan keystore dari GitHub Secrets
         env:
           KEYSTORE_BASE64: ${{ secrets.NIHONGO_KEYSTORE_BASE64 }}

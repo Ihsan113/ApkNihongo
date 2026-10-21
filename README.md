@@ -1,6 +1,12 @@
-# NihonGo Native Android — v0.1.8
+# NihonGo Native Android — v0.1.9
 
 Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi web. Situs dipakai sebagai referensi desain dan kontrak API; layar Android dibangun dengan Jetpack Compose dan tidak menampilkan situs melalui WebView.
+
+## Perubahan build v0.1.9
+
+- Memperbaiki kegagalan GitHub Actions yang meminta paket SDK `platforms;android-37` tetapi paket itu tidak tersedia dengan nama tersebut di kanal SDK yang dipakai runner.
+- Menyamakan `compileSdk` ke API 36 dengan `targetSdk = 36` dan menginstal `platforms;android-36` + `build-tools;36.0.0`. Ini menghindari platform API 37 yang belum dibutuhkan kode saat ini dan menjaga toolchain AGP 8.13.2 tetap konsisten.
+- Version dinaikkan ke `0.1.9` / `versionCode 10`.
 
 ## Perubahan Home v0.1.8
 
@@ -12,7 +18,7 @@ Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi we
 
 ## Dokumentasi perubahan
 
-Catatan patch semua versi ditempatkan rapi di folder [`path-notes/`](path-notes/). Untuk melihat perubahan versi ini, buka [`PATCH-NOTES-v0.1.8.md`](path-notes/PATCH-NOTES-v0.1.8.md). Catatan versi baru berikutnya juga harus disimpan di folder `path-notes/`, bukan di root proyek.
+Catatan patch semua versi ditempatkan rapi di folder [`path-notes/`](path-notes/). Untuk melihat perubahan versi ini, buka [`PATCH-NOTES-v0.1.9.md`](path-notes/PATCH-NOTES-v0.1.9.md). Catatan versi baru berikutnya juga harus disimpan di folder `path-notes/`, bukan di root proyek.
 
 ## Endpoint backend
 
@@ -36,9 +42,9 @@ Backend tetap menjadi sumber kebenaran untuk akun/progres/ekonomi. Tidak ada cli
 2. Buka **Actions → Build NihonGo Native Android → Run workflow**.
 3. Setelah workflow selesai, unduh artifact **NihonGo-Native-debug-apk**.
 
-Workflow memasang Android SDK Platform 37 dan Build Tools 36.0.0. Android Gradle Plugin masih 8.13.2/Kotlin 2.4.21; jika log Gradle menyatakan versi toolchain tidak kompatibel dengan SDK/dependency yang dipilih, kirim log lengkap sebelum mengganti versi secara acak.
+Workflow memasang Android SDK Platform 36 dan Build Tools 36.0.0. Android Gradle Plugin masih 8.13.2/Kotlin 2.4.21. API 37 tidak diperlukan oleh kode saat ini; jika kebutuhan API 37 muncul kelak, naikkan SDK dan AGP secara terencana, bukan hanya mengganti nama paket di workflow.
 
-Untuk build lokal, gunakan JDK 17 dan Android SDK Platform 37, kemudian jalankan:
+Untuk build lokal, gunakan JDK 17 dan Android SDK Platform 36, kemudian jalankan:
 
 ```bash
 ./gradlew :app:assembleDebug
@@ -61,5 +67,6 @@ Untuk build lokal, gunakan JDK 17 dan Android SDK Platform 37, kemudian jalankan
 
 ## Versi
 
+- **0.1.9 / versionCode 10** — perbaikan SDK CI: compileSdk/platform dikembalikan ke API 36 agar paket SDK tersedia dan cocok dengan toolchain saat ini.
 - **0.1.8 / versionCode 9** — Home Compose native, model GLB via Filament, data Home dari API.
 - **0.1.7 / versionCode 8** — versi sebelumnya mencoba menampilkan Home via WebView; pendekatan tersebut dibatalkan di v0.1.8 karena target proyek adalah full native.
