@@ -75,10 +75,16 @@ fun NihongoRoot(
         }
     }
 
+    fun setLanguage(nextLanguage: String) {
+        val next = if (nextLanguage == "en") "en" else "id"
+        if (language != next) {
+            language = next
+            scope.launch { sessionStore.setLanguage(next) }
+        }
+    }
+
     fun switchLanguage() {
-        val next = if (language == "id") "en" else "id"
-        language = next
-        scope.launch { sessionStore.setLanguage(next) }
+        setLanguage(if (language == "id") "en" else "id")
     }
 
     fun completeLogin(session: AuthSession) {
@@ -148,12 +154,12 @@ fun NihongoRoot(
                 if (currentUser == null || token.isNullOrBlank()) {
                     LaunchedEffect(stage) { stage = NativeStage.Login }
                 } else {
-                    HomeScreen(
+                    HomeWebView(
                         user = currentUser,
+                        token = token.orEmpty(),
                         language = language,
-                        onToggleLanguage = ::switchLanguage,
                         onLogout = ::logOut,
-                        onNotice = { text -> scope.launch { snackbarHostState.showSnackbar(text) } }
+                        onLanguageChange = ::setLanguage
                     )
                 }
             }

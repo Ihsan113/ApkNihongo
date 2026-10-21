@@ -1,4 +1,4 @@
-# NihonGo Native Android — v0.1.4
+# NihonGo Native Android — v0.1.7
 
 Fondasi aplikasi Android native untuk NihonGo, diambil dari source web yang diberikan dan menggunakan backend produksi yang sama.
 
@@ -9,9 +9,10 @@ Fondasi aplikasi Android native untuk NihonGo, diambil dari source web yang dibe
 - Sesi diverifikasi lagi melalui `GET /api/auth/me` saat aplikasi dibuka.
 - Token sesi dienkripsi dengan AES-GCM dan kunci Android Keystore sebelum disimpan di Preferences DataStore.
 - Onboarding tiga halaman memakai ilustrasi dan copy dari source web, dengan status selesai yang disimpan per akun di perangkat.
-- Home awal memakai palet, background, header Jepang, card “Lanjutkan Belajar”, ringkasan, dan pola navigasi NihonGo. Menu belajar selanjutnya masih berupa placeholder/snackbar karena cakupan tahap ini memang sampai Home.
-- Gambar diubah menjadi WebP dengan ukuran terkontrol agar tidak membawa seluruh aset web/3D yang berat ke aplikasi.
-- Compose BOM dipin ke `2025.12.00` (Compose 1.10) agar cocok dengan AGP 8.13.2 dan Android SDK 36. Workflow GitHub Actions disediakan untuk membuat debug APK tanpa harus membangun langsung di HP. Workflow memakai `android-actions/setup-android@v4` dan hanya meminta `platform-tools`; paket SDK lama bernama `tools` tidak lagi diminta.
+- Home pada v0.1.7 menampilkan Home web NihonGo aktual lewat WebView first-party. Ini sengaja dipilih agar karakter Sensei VRM, sapaan/animasi, Reward Center, statistik mingguan, progres materi, dan seluruh navigasi/aksi Home tetap sama dengan versi web daripada menampilkan replika Compose yang belum lengkap.
+- Login Google tetap native lewat Credential Manager. Token sesi server yang diterima setelah login disinkronkan ke storage origin NihonGo dengan bootstrap satu kali sebelum layar web ditampilkan; logout di web dikembalikan ke flow login native.
+- Aset onboarding/login native tetap dioptimalkan sebagai WebP. Model VRM dan asset Home dimuat dari situs HTTPS resmi, sehingga Home membutuhkan koneksi internet dan dukungan WebGL pada Android System WebView.
+- Compose BOM dipin ke `2025.12.00` (Compose 1.10) agar cocok dengan AGP 8.13.2 dan Android SDK 36. Workflow GitHub Actions disediakan untuk membuat debug APK tanpa harus membangun langsung di HP. Workflow memakai `android-actions/setup-android@v4` dan hanya meminta `platform-tools`; paket SDK lama bernama `tools` tidak lagi diminta. Pemeriksaan SHA-1 workflow diselaraskan dengan fingerprint debug keystore yang terlihat pada build terakhir (`90C46BCA94D902D4D761E4DAB85053267369AB31`). Jika Secrets memakai keystore berbeda, ubah `EXPECTED_SHA1` ke fingerprint keystore tersebut.
 
 ## Backend
 
@@ -49,7 +50,7 @@ Workflow sudah diperbaiki agar tidak lagi gagal pada `Warning: Failed to find pa
 2. Buka tab **Actions** → workflow **Build NihonGo Native Android** → **Run workflow**.
 3. Setelah selesai, buka artifact `NihonGo-Native-debug-apk` lalu unduh APK.
 
-APK debug menggunakan application ID `id.vixnihon.nativeapp.debug`. Build release menggunakan `id.vixnihon.nativeapp`.
+APK debug dan release sama-sama menggunakan application ID `id.vixnihon.nativeapp`; build debug hanya menambahkan suffix pada version name, bukan pada package ID.
 
 ## Pengaturan Google OAuth yang wajib dicek
 
@@ -65,10 +66,11 @@ Untuk mendapatkan SHA-1 debug, jalankan:
 
 ## Catatan ruang lingkup dan verifikasi
 
-- Ini adalah **project source native**, bukan APK yang sudah saya klaim berhasil diuji. Lingkungan kerja ini tidak menyediakan Android SDK/Gradle terpasang dan tidak dapat menjangkau domain deployment melalui DNS, jadi build APK dan login live belum bisa diverifikasi dari sini.
+- Ini adalah **project source Android**, bukan APK yang sudah diklaim berhasil diuji. Lingkungan kerja ini tidak dapat mengunduh distribusi Gradle dari internet, sehingga build Android penuh belum bisa diverifikasi di lingkungan ini.
 - Login memerlukan internet, Google Play Services/Credential Manager yang berfungsi, konfigurasi OAuth yang sesuai, dan backend aktif.
-- Home saat ini adalah fondasi ringan untuk tahap awal. Avatar 3D berbasis VRM dan layar-layar belajar penuh dari web belum dipindahkan ke native pada versi ini.
-- Tema awal mengikuti tampilan gelap web: `#07070D`, panel `#0F0F17`, dan aksen merah `#E03535`.
+- Home menggunakan situs NihonGo yang berjalan dalam WebView terkunci ke domain HTTPS first-party untuk menjaga model dan fungsi tetap konsisten. Pengalaman belajar/reward/tab yang terbuka dari Home menggunakan layar web yang sudah ada; login Google awal tetap native.
+- Model 3D bergantung pada dukungan WebGL di Android System WebView dan koneksi internet.
+- Tema native untuk layar login/onboarding mengikuti tampilan web: `#07070D`, panel `#0F0F17`, dan aksen merah `#E03535`.
 
 
 ## Patch kompatibilitas 0.1.2
@@ -79,3 +81,8 @@ Error `androidx.compose.runtime:runtime-saveable-android:1.12.0 requires Android
 ## Patch kompatibilitas 0.1.4
 
 Error `Using 'jvmTarget: String' is an error. Please migrate to the compilerOptions DSL` diperbaiki dengan menghapus `android.kotlinOptions { jvmTarget = "17" }` dan memindahkan target JVM ke `kotlin.compilerOptions` bertipe (`JvmTarget.JVM_17`). Ini mengikuti DSL resmi Kotlin Gradle Plugin 2.4.x. Versi aplikasi menjadi `0.1.4` / `versionCode 5`.
+
+
+## Patch v0.1.7 — Home parity
+
+Home Compose placeholder diganti dengan WebView first-party pada `https://www.vixnihon.web.id/` agar avatar VRM, statistik, Reward Center, dan navigasi aktual tampil sama seperti di web. Sesi dari Credential Manager native disinkronkan setelah origin diverifikasi; halaman ditahan dari pandangan pengguna selama bootstrap. Logout dikirim balik ke sesi native dan perubahan bahasa disinkronkan ke DataStore. Lihat `PATCH-NOTES-v0.1.7.md`.
