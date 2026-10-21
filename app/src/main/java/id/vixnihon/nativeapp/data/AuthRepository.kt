@@ -85,6 +85,18 @@ class AuthRepository {
         request("/api/credits/history?lang=${if (language == "en") "en" else "id"}&page=${page.coerceAtLeast(1)}&limit=20$requestedKind", token = token)
     }
 
+    /** Match the authenticated SettingsScreen.jsx API contracts. */
+    suspend fun sendFeedback(token: String, rating: Int?, message: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/feedback", method = "POST", token = token,
+            body = JSONObject().put("rating", rating).put("message", message.take(2000)).put("pageContext", "settings").toString())
+    }
+
+    /** Irreversible; only call after the native CONFIRM + final dialog. */
+    suspend fun deleteAccount(token: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/auth/delete-account", method = "POST", token = token,
+            body = JSONObject().put("confirmation", "CONFIRM").toString())
+    }
+
     private fun request(
         path: String,
         method: String = "GET",

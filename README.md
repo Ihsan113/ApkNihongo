@@ -1,6 +1,12 @@
-# NihonGo Native Android — v0.1.14
+# NihonGo Native Android — v0.1.15
 
 Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi web. Situs dipakai sebagai referensi desain dan kontrak API; layar Android dibangun dengan Jetpack Compose dan tidak menampilkan situs melalui WebView.
+
+## Home + Pengaturan Pengguna v0.1.15 (current)
+
+Base proyek adalah ZIP **v0.1.14**. Berdasar dua screenshot terbaru, avatar Home diperbesar (kamera native jarak 1.92m), glow/backdrop diselaraskan, dan suara Jepang otomatis (sambutan + idle 10–15 detik) dinyalakan seperti web. Android TTS butuh dukungan bahasa Japanese di perangkat; keterbatasan VRM lip-sync dijelaskan di catatan patch.
+
+Halaman Pengaturan pengguna kini mengikuti hierarki web: Akun, Suara & Mic, Avatar, Tema, Bahasa, Penyimpanan, Feedback, Bantuan/Legal, dan konfirmasi hapus akun. Admin tetap **tidak disentuh**. Klik ke [`path-notes/PATCH-NOTES-v0.1.15.md`](path-notes/PATCH-NOTES-v0.1.15.md) untuk detail batasan dan rencana uji. **Belum dibuild APK di lingkungan ini.**
 
 ## Home parity v0.1.14 (current)
 

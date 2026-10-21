@@ -23,11 +23,11 @@ fun NativeSenseiModel(modifier: Modifier = Modifier) {
     val engine = rememberEngine()
     val modelLoader = rememberModelLoader(engine)
     val cameraNode = rememberCameraNode(engine) {
-        // The GLB spans roughly y=0..1.61m. Aim at its actual centre,
-        // not the world origin (which cut the head off in v0.1.11).
-        // Extra distance keeps hair, hands and shoes within a narrow phone viewport.
-        position = Position(x = 0f, y = 0.80f, z = 2.90f)
-        lookAt(Position(x = 0f, y = 0.80f, z = 0f))
+        // Screenshot parity: 1.51x native camera zoom versus v0.1.14.
+        // Converted GLB has a different root/pivot than VRM web, so keep y=0.82;
+        // web screenshot intentionally shows upper body filling the right hero and crops legs.
+        position = Position(x = 0.03f, y = 0.82f, z = 1.92f)
+        lookAt(Position(x = 0f, y = 0.82f, z = 0f))
     }
 
     Box(modifier = modifier) {

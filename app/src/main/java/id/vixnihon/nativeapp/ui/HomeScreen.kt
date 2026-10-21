@@ -57,6 +57,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -188,7 +191,7 @@ fun HomeScreen(
     val isId = language == "id"
     val context = LocalContext.current
     var showSettings by remember { mutableStateOf(false) }
-    var showLogoutConfirmation by remember { mutableStateOf(false) }
+    
     var catalog by remember { mutableStateOf(NativeLessonCatalog()) }
     var lessonProgress by remember { mutableStateOf<Map<String, NativeLessonProgress>>(emptyMap()) }
     var weeklyStats by remember { mutableStateOf<NativeWeeklyStats?>(null) }
@@ -197,7 +200,18 @@ fun HomeScreen(
     var destination by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     val isHomeTopVisible = destination == null && listState.firstVisibleItemIndex == 0
-    var speechEnabled by remember { mutableStateOf(false) } // Opt-in: never surprise users with audio in public.
+    var settings by remember { mutableStateOf(NativeSettingsStorage.load(context)) }
+    val systemDark = isSystemInDarkTheme()
+    val lightTheme = when (settings.theme) {
+        "light" -> true
+        "dark" -> false
+        else -> !systemDark
+    }
+    SideEffect { NihongoPalette.lightMode = lightTheme }
+    BackHandler(enabled = showSettings) { showSettings = false }
+
+    var senseiSpeaking by remember { mutableStateOf(false) }
+    var voiceUnavailable by remember { mutableStateOf("") }
     var appIsForeground by remember { mutableStateOf(true) }
     val lifecycle = remember(context) { findNativeLifecycleOwner(context) }
     DisposableEffect(lifecycle) {
@@ -215,7 +229,12 @@ fun HomeScreen(
         (user.name.ifBlank { user.email.substringBefore('@') })
             .trim().split(Regex("\\s+")).firstOrNull().orEmpty().ifBlank { "Sensei" }
     }
-    NativeHomeSpeech(enabled = speechEnabled && isHomeTopVisible && appIsForeground)
+    NativeHomeSpeech(
+        enabled = settings.speechEnabled && destination == null && !showSettings && appIsForeground,
+        rate = settings.speechRate, pitch = settings.speechPitch, volume = settings.speechVolume,
+        onSpeaking = { senseiSpeaking = it },
+        onUnavailable = { error -> if (voiceUnavailable != error) { voiceUnavailable = error; onNotice(error) } }
+    )
     var clockTick by remember { mutableIntStateOf(0) }
     LaunchedEffect(Unit) {
         while (isActive) { delay(60_000); clockTick++ }
@@ -267,7 +286,21 @@ fun HomeScreen(
             .statusBarsPadding()
             .background(NihongoPalette.background)
     ) {
-        if (destination != null) {
+        if (showSettings) {
+            NativeSettingsScreen(
+                user = user,
+                language = language,
+                preferences = settings,
+                onPreferencesChange = { next ->
+                    settings = next
+                    NativeSettingsStorage.save(context, next)
+                },
+                onToggleLanguage = onToggleLanguage,
+                repository = repository, token = authToken,
+                onBack = { showSettings = false },
+                onLogout = onLogout, onNotice = onNotice
+            )
+        } else if (destination != null) {
             HomeLinkedDestination(
                 route = destination.orEmpty(), language = language, token = authToken,
                 repository = repository, chapter = learning.chapter, lessons = catalog.lessons,
@@ -366,56 +399,7 @@ fun HomeScreen(
         }
     }
 
-    if (showSettings) {
-        AlertDialog(
-            onDismissRequest = { showSettings = false },
-            containerColor = NihongoPalette.surface2,
-            title = { Text(if (isId) "Pengaturan akun" else "Account settings", color = NihongoPalette.white, fontWeight = FontWeight.Black) },
-            text = {
-                Column {
-                    Text(user.name.ifBlank { "NihonGo user" }, color = NihongoPalette.white, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(4.dp))
-                    Text(user.email, color = NihongoPalette.dim2, fontSize = 12.sp)
-                    Spacer(Modifier.height(18.dp))
-                    Text(if (isId) "Bahasa tampilan" else "Display language", color = NihongoPalette.dim2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        LanguageChoice("Indonesia", isId, onClick = { if (!isId) onToggleLanguage() }, modifier = Modifier.weight(1f))
-                        LanguageChoice("English", !isId, onClick = { if (isId) onToggleLanguage() }, modifier = Modifier.weight(1f))
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    Text(if (isId) "Suara sapaan Sensei (Jepang)" else "Sensei's Japanese greeting", color = NihongoPalette.dim2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
-                    LanguageChoice(if (speechEnabled) (if (isId) "Aktif · ketuk untuk matikan" else "On · tap to disable") else (if (isId) "Nonaktif · ketuk untuk aktifkan" else "Off · tap to enable"), speechEnabled, onClick = { speechEnabled = !speechEnabled })
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showSettings = false }) { Text(if (isId) "Selesai" else "Done", color = NihongoPalette.redSoft) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSettings = false; showLogoutConfirmation = true }) {
-                    Text(if (isId) "Keluar" else "Sign out", color = NihongoPalette.dim2)
-                }
-            }
-        )
-    }
 
-    if (showLogoutConfirmation) {
-        AlertDialog(
-            onDismissRequest = { showLogoutConfirmation = false },
-            containerColor = NihongoPalette.surface2,
-            title = { Text(if (isId) "Keluar dari akun?" else "Sign out?", color = NihongoPalette.white, fontWeight = FontWeight.Black) },
-            text = { Text(if (isId) "Kamu bisa masuk kembali kapan saja dengan akun Google yang sama." else "You can sign in again at any time with the same Google account.", color = NihongoPalette.dim2) },
-            confirmButton = {
-                TextButton(onClick = { showLogoutConfirmation = false; onLogout() }, colors = ButtonDefaults.textButtonColors(contentColor = NihongoPalette.redSoft)) {
-                    Text(if (isId) "Keluar" else "Sign out")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLogoutConfirmation = false }) { Text(if (isId) "Batal" else "Cancel", color = NihongoPalette.dim2) }
-            }
-        )
-    }
 }
 
 @Composable
@@ -442,7 +426,12 @@ private fun HomeHeroNative(
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
-                    colorStops = arrayOf(
+                    colorStops = if (NihongoPalette.lightMode) arrayOf(
+                        0f to Color(0x8A05050B),
+                        0.33f to Color(0x3805050B),
+                        0.66f to Color(0x1005050B),
+                        1f to Color(0x18F6F7FB)
+                    ) else arrayOf(
                         0f to Color(0xA305050B),
                         0.30f to Color(0x4D05050B),
                         0.52f to Color(0x2905050B),
@@ -452,6 +441,16 @@ private fun HomeHeroNative(
                 )
             )
         )
+        // Web HomeAvatarCanvas: subtle red halo behind the upper-right avatar.
+        Canvas(Modifier.fillMaxSize()) {
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0x2EE03535), Color.Transparent),
+                    center = Offset(size.width * 0.80f, size.height * 0.22f),
+                    radius = size.width * 0.50f
+                )
+            )
+        }
         // A subtle left scrim preserves white-text contrast against the sky.
         Box(
             Modifier.fillMaxWidth(0.68f).height(320.dp)
@@ -562,8 +561,8 @@ private fun ContinueLearningNativeCard(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(25.dp),
-        color = Color(0xF51A1118),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x5AE03535)),
+        color = if (NihongoPalette.lightMode) Color(0xFFFCFCFE) else Color(0xF51A1118),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (NihongoPalette.lightMode) Color(0x22111827) else Color(0x5AE03535)),
         shadowElevation = 16.dp
     ) {
         Column(Modifier.padding(16.dp)) {
@@ -591,7 +590,7 @@ private fun ContinueLearningNativeCard(
                     )
                     Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.weight(1f).height(6.dp).clip(CircleShape).background(Color(0x24FFFFFF))) {
+                        Box(Modifier.weight(1f).height(6.dp).clip(CircleShape).background(if (NihongoPalette.lightMode) Color(0x26111827) else Color(0x24FFFFFF))) {
                             Box(Modifier.fillMaxWidth(percent / 100f).height(6.dp).clip(CircleShape).background(Brush.horizontalGradient(listOf(NihongoPalette.red, NihongoPalette.redLight))))
                         }
                         Spacer(Modifier.width(10.dp))
@@ -600,7 +599,7 @@ private fun ContinueLearningNativeCard(
                 }
             }
             Spacer(Modifier.height(14.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x14FFFFFF)))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(NihongoPalette.border))
             Spacer(Modifier.height(13.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(
