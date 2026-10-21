@@ -9,3 +9,5 @@ Versi terbaru: [PATCH-NOTES-v0.1.10.md](PATCH-NOTES-v0.1.10.md).
 
 Source code, konfigurasi Gradle, dan workflow GitHub Actions tetap di lokasi proyek masing-masing; hanya dokumentasi perubahan yang dikelompokkan di sini.
 
+
+- [PATCH-NOTES-v0.1.11.md](PATCH-NOTES-v0.1.11.md) — penyesuaian SceneView ke 4.34.0 agar compile SDK 36.

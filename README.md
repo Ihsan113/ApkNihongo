@@ -1,6 +1,13 @@
-# NihonGo Native Android — v0.1.10
+# NihonGo Native Android — v0.1.11
 
 Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi web. Situs dipakai sebagai referensi desain dan kontrak API; layar Android dibangun dengan Jetpack Compose dan tidak menampilkan situs melalui WebView.
+
+## Perubahan build v0.1.11
+
+- Memperbaiki ulang kegagalan `:app:checkDebugAarMetadata`: SceneView `4.52.0` ternyata juga memerlukan compile SDK 37, sehingga tetap tidak cocok dengan API 36/AGP 8.13.2.
+- Menurunkan SceneView ke `4.34.0`, yaitu rilis sebelum lini SceneView menaikkan compile SDK ke 37 pada versi 4.35.0. Ini mempertahankan render GLB dengan Filament secara native tanpa berpindah ke WebView dan tanpa meminta SDK 37 yang tidak ditemukan oleh sdkmanager runner.
+- Mempertahankan `compileSdk = 36`, `targetSdk = 36`, Compose BOM enforced `2026.06.01`, AGP `8.13.2`, dan Gradle `8.14.4`.
+- Version dinaikkan ke `0.1.11` / `versionCode 12`.
 
 ## Perubahan build v0.1.10
 
@@ -50,7 +57,7 @@ Backend tetap menjadi sumber kebenaran untuk akun/progres/ekonomi. Tidak ada cli
 2. Buka **Actions → Build NihonGo Native Android → Run workflow**.
 3. Setelah workflow selesai, unduh artifact **NihonGo-Native-debug-apk**.
 
-Workflow memasang Android SDK Platform 36 dan Build Tools 36.0.0. Android Gradle Plugin masih 8.13.2/Kotlin 2.4.21; Gradle Wrapper sekarang 8.14.4. SceneView dikunci ke 4.52.0 dan Compose BOM 2026.06.01 enforced untuk menghindari dependensi API 37 yang gagal di toolchain ini.
+Workflow memasang Android SDK Platform 36 dan Build Tools 36.0.0. Android Gradle Plugin masih 8.13.2/Kotlin 2.4.21; Gradle Wrapper sekarang 8.14.4. SceneView dikunci ke 4.34.0 dan Compose BOM 2026.06.01 enforced untuk menghindari dependensi API 37 yang gagal di toolchain ini.
 
 Untuk build lokal, gunakan JDK 17 dan Android SDK Platform 36, kemudian jalankan:
 
@@ -75,6 +82,7 @@ Untuk build lokal, gunakan JDK 17 dan Android SDK Platform 36, kemudian jalankan
 
 ## Versi
 
+- **0.1.11 / versionCode 12** — menurunkan SceneView ke 4.34.0 karena SceneView 4.52.0 masih membutuhkan compile SDK 37.
 - **0.1.10 / versionCode 11** — menyelaraskan versi SceneView/Compose ke API 36 dan menaikkan Gradle Wrapper ke 8.14.4.
 - **0.1.9 / versionCode 10** — perbaikan SDK CI: compileSdk/platform dikembalikan ke API 36 agar paket SDK tersedia dan cocok dengan toolchain saat ini.
 - **0.1.8 / versionCode 9** — Home Compose native, model GLB via Filament, data Home dari API.
