@@ -1,6 +1,14 @@
-# NihonGo Native Android — v0.1.9
+# NihonGo Native Android — v0.1.10
 
 Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi web. Situs dipakai sebagai referensi desain dan kontrak API; layar Android dibangun dengan Jetpack Compose dan tidak menampilkan situs melalui WebView.
+
+## Perubahan build v0.1.10
+
+- Mengatasi `checkDebugAarMetadata` yang gagal karena SceneView 4.60.0 dan Compose 1.12.1 mewajibkan compile SDK 37 serta AGP 9.1.0.
+- Menurunkan SceneView ke 4.52.0, yang mendahului perubahan persyaratan SDK 37 pada lini 4.53+, agar tetap cocok dengan compile SDK 36/AGP 8.13.2.
+- Mengunci Compose ke BOM 2026.06.01 memakai `enforcedPlatform` supaya transitive dependency tidak diam-diam menaikkan Compose ke 1.12.1; menyelaraskan `activity-compose` ke 1.12.0.
+- Memperbarui Gradle Wrapper ke 8.14.4 untuk menghilangkan peringatan versi Gradle 8.13 yang akan segera tidak didukung plugin Kotlin mendatang.
+- Version dinaikkan ke `0.1.10` / `versionCode 11`.
 
 ## Perubahan build v0.1.9
 
@@ -18,7 +26,7 @@ Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi we
 
 ## Dokumentasi perubahan
 
-Catatan patch semua versi ditempatkan rapi di folder [`path-notes/`](path-notes/). Untuk melihat perubahan versi ini, buka [`PATCH-NOTES-v0.1.9.md`](path-notes/PATCH-NOTES-v0.1.9.md). Catatan versi baru berikutnya juga harus disimpan di folder `path-notes/`, bukan di root proyek.
+Catatan patch semua versi ditempatkan rapi di folder [`path-notes/`](path-notes/). Untuk melihat perubahan versi ini, buka [`PATCH-NOTES-v0.1.10.md`](path-notes/PATCH-NOTES-v0.1.10.md). Catatan versi baru berikutnya juga harus disimpan di folder `path-notes/`, bukan di root proyek.
 
 ## Endpoint backend
 
@@ -42,7 +50,7 @@ Backend tetap menjadi sumber kebenaran untuk akun/progres/ekonomi. Tidak ada cli
 2. Buka **Actions → Build NihonGo Native Android → Run workflow**.
 3. Setelah workflow selesai, unduh artifact **NihonGo-Native-debug-apk**.
 
-Workflow memasang Android SDK Platform 36 dan Build Tools 36.0.0. Android Gradle Plugin masih 8.13.2/Kotlin 2.4.21. API 37 tidak diperlukan oleh kode saat ini; jika kebutuhan API 37 muncul kelak, naikkan SDK dan AGP secara terencana, bukan hanya mengganti nama paket di workflow.
+Workflow memasang Android SDK Platform 36 dan Build Tools 36.0.0. Android Gradle Plugin masih 8.13.2/Kotlin 2.4.21; Gradle Wrapper sekarang 8.14.4. SceneView dikunci ke 4.52.0 dan Compose BOM 2026.06.01 enforced untuk menghindari dependensi API 37 yang gagal di toolchain ini.
 
 Untuk build lokal, gunakan JDK 17 dan Android SDK Platform 36, kemudian jalankan:
 
@@ -50,7 +58,7 @@ Untuk build lokal, gunakan JDK 17 dan Android SDK Platform 36, kemudian jalankan
 ./gradlew :app:assembleDebug
 ```
 
-`gradlew` merupakan bootstrap kecil yang mengunduh distribusi Gradle 8.13 pada pemakaian pertama lalu memeriksa SHA-256 distribusi.
+`gradlew` merupakan bootstrap kecil yang mengunduh distribusi Gradle 8.14.4 pada pemakaian pertama lalu memeriksa SHA-256 distribusi.
 
 ## Google OAuth dan signing
 
@@ -67,6 +75,7 @@ Untuk build lokal, gunakan JDK 17 dan Android SDK Platform 36, kemudian jalankan
 
 ## Versi
 
+- **0.1.10 / versionCode 11** — menyelaraskan versi SceneView/Compose ke API 36 dan menaikkan Gradle Wrapper ke 8.14.4.
 - **0.1.9 / versionCode 10** — perbaikan SDK CI: compileSdk/platform dikembalikan ke API 36 agar paket SDK tersedia dan cocok dengan toolchain saat ini.
 - **0.1.8 / versionCode 9** — Home Compose native, model GLB via Filament, data Home dari API.
 - **0.1.7 / versionCode 8** — versi sebelumnya mencoba menampilkan Home via WebView; pendekatan tersebut dibatalkan di v0.1.8 karena target proyek adalah full native.

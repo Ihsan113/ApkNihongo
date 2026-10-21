@@ -2,7 +2,7 @@
 # Small Gradle bootstrapper for environments where Gradle Wrapper JAR is not bundled.
 # Downloads the pinned Gradle distribution once and validates its published SHA-256.
 set -eu
-VERSION="8.13"
+VERSION="8.14.4"
 DIST="gradle-${VERSION}-bin.zip"
 BASE="https://services.gradle.org/distributions"
 CACHE="${GRADLE_USER_HOME:-$HOME/.gradle}/nihongo-bootstrap"

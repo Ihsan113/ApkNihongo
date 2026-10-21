@@ -43,7 +43,7 @@ jobs:
             echo "::warning::Secret NIHONGO_KEYSTORE_BASE64 belum diset - pakai app/debug.keystore (SHA-1 TIDAK akan sama dengan yang terdaftar)."
           fi
       - name: Build debug APK
-        run: ./gradlew --no-daemon :app:assembleDebug
+        run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
       - name: Cek SHA-1 sertifikat APK
         run: |
           APKSIGNER=$(ls $ANDROID_HOME/build-tools/*/apksigner | tail -1)
