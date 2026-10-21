@@ -1,6 +1,12 @@
-# NihonGo Native Android — v0.1.12
+# NihonGo Native Android — v0.1.14
 
 Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi web. Situs dipakai sebagai referensi desain dan kontrak API; layar Android dibangun dengan Jetpack Compose dan tidak menampilkan situs melalui WebView.
+
+## Home parity v0.1.14 (current)
+
+Versi ini mencocokkan kembali kode JSX Home web terhadap Android native, bukan sekadar menambal overflow. Hero 506dp dengan background dan overlay senada web, avatar native Filament kanan, welcome/header, overlap kartu belajar, Reward Center, grafik XP, level/kredit, 4 statistik, dan grafik streak/minutes dibuat lebih proporsional. Home diambil dari data server terautentikasi. **Misi** bisa menampilkan & klaim hadiah, **Riwayat** filter dan halaman, **Top Up** menampilkan katalog, **Lanjutkan** menampilkan materi dan status unlock. Checkout QRIS dan player pelajaran native sengaja belum diaktifkan karena perlu layar native lengkap agar tidak ada transaksi/aksi palsu. Settings menyediakan suara TTS Jepang opsional (default mati untuk hemat baterai). Tidak ada WebView.
+
+Logika detail dan ketentuan uji dibahas di [`path-notes/PATCH-NOTES-v0.1.14.md`](path-notes/PATCH-NOTES-v0.1.14.md). **Belum divalidasi build APK karena toolchain Android tidak terpasang di sesi ini.** Jalankan GitHub Actions dan uji di perangkat sebelum menilai kesamaan piksel-per-piksel.
 
 ## Perbaikan Home v0.1.12 — fokus 100% native
 
@@ -95,6 +101,7 @@ Untuk build lokal, gunakan JDK 17 dan Android SDK Platform 36, kemudian jalankan
 
 ## Versi
 
+- **0.1.14 / versionCode 14** — menyamakan ulang Home dengan source JSX dan membuat tujuan shortcut native berbasis API.
 - **0.1.12 / versionCode 13** — frame Sensei, tinggi hero, kartu belajar overlap 42dp dan 3 Reward Center responsif.
 - **0.1.11 / versionCode 12** — menurunkan SceneView ke 4.34.0 karena SceneView 4.52.0 masih membutuhkan compile SDK 37.
 - **0.1.10 / versionCode 11** — menyelaraskan versi SceneView/Compose ke API 36 dan menaikkan Gradle Wrapper ke 8.14.4.

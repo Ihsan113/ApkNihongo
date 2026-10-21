@@ -66,6 +66,25 @@ class AuthRepository {
         request("/api/stats/weekly?lang=$encodedLanguage", token = token)
     }
 
+    /** Home shortcuts stay native and use the same authenticated server contracts as the web. */
+    suspend fun fetchTodayMissions(token: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/missions/today", token = token)
+    }
+
+    suspend fun claimMission(token: String, missionId: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/missions/claim", method = "POST", token = token,
+            body = JSONObject().put("missionId", missionId).toString())
+    }
+
+    suspend fun fetchCreditPackages(token: String, language: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/credits/packages?lang=${if (language == "en") "en" else "id"}", token = token)
+    }
+
+    suspend fun fetchCreditHistory(token: String, language: String, kind: String, page: Int): JSONObject = withContext(Dispatchers.IO) {
+        val requestedKind = if (kind == "xp" || kind == "credit") "&kind=$kind" else ""
+        request("/api/credits/history?lang=${if (language == "en") "en" else "id"}&page=${page.coerceAtLeast(1)}&limit=20$requestedKind", token = token)
+    }
+
     private fun request(
         path: String,
         method: String = "GET",

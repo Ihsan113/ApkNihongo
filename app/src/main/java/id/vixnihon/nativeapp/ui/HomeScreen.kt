@@ -1,7 +1,10 @@
 package id.vixnihon.nativeapp.ui
 
 import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -24,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -52,12 +56,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -91,9 +99,22 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlin.math.pow
+import kotlin.math.floor
+import android.speech.tts.TextToSpeech
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import java.util.Locale
+import kotlin.random.Random
 import kotlin.math.roundToInt
 
-private data class NativeLessonMeta(
+internal data class NativeLessonMeta(
     val id: String,
     val no: Int,
     val jlpt: String,
@@ -101,7 +122,7 @@ private data class NativeLessonMeta(
     val titleEn: String
 )
 
-private data class NativeChapterMeta(
+internal data class NativeChapterMeta(
     val id: String,
     val jlpt: String,
     val no: Int,
@@ -115,7 +136,7 @@ private data class NativeLessonCatalog(
     val chapters: List<NativeChapterMeta> = emptyList()
 )
 
-private data class NativeLessonProgress(val completed: Boolean, val stars: Int, val score: Int, val total: Int) {
+internal data class NativeLessonProgress(val completed: Boolean, val stars: Int, val score: Int, val total: Int) {
     val passed: Boolean get() = completed && stars >= 2
 }
 
@@ -173,12 +194,33 @@ fun HomeScreen(
     var weeklyStats by remember { mutableStateOf<NativeWeeklyStats?>(null) }
     var refreshError by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableStateOf(0) }
-
+    var destination by remember { mutableStateOf<String?>(null) }
+    val listState = rememberLazyListState()
+    val isHomeTopVisible = destination == null && listState.firstVisibleItemIndex == 0
+    var speechEnabled by remember { mutableStateOf(false) } // Opt-in: never surprise users with audio in public.
+    var appIsForeground by remember { mutableStateOf(true) }
+    val lifecycle = remember(context) { findNativeLifecycleOwner(context) }
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> { if (!appIsForeground) refreshKey++; appIsForeground = true }
+                Lifecycle.Event.ON_PAUSE -> appIsForeground = false
+                else -> Unit
+            }
+        }
+        lifecycle?.lifecycle?.addObserver(observer)
+        onDispose { lifecycle?.lifecycle?.removeObserver(observer) }
+    }
     val firstName = remember(user.name, user.email) {
         (user.name.ifBlank { user.email.substringBefore('@') })
             .trim().split(Regex("\\s+")).firstOrNull().orEmpty().ifBlank { "Sensei" }
     }
-    val clock = Calendar.getInstance()
+    NativeHomeSpeech(enabled = speechEnabled && isHomeTopVisible && appIsForeground)
+    var clockTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (isActive) { delay(60_000); clockTick++ }
+    }
+    val clock = remember(clockTick) { Calendar.getInstance() }
     val minuteOfDay = clock.get(Calendar.HOUR_OF_DAY) * 60 + clock.get(Calendar.MINUTE)
     val heroDrawable = when (minuteOfDay) {
         in 270..359 -> R.drawable.home_hero_fajar
@@ -201,25 +243,41 @@ fun HomeScreen(
             val statsTask = async { runCatching { repository.fetchWeeklyStats(authToken, language) }.getOrNull() }
             val progressJson = progressTask.await()
             val statsJson = statsTask.await()
-            if (progressJson == null && statsJson == null) refreshError = true
+            if (progressJson == null || statsJson == null) refreshError = true
             if (progressJson != null) lessonProgress = parseNativeProgress(progressJson)
-            weeklyStats = statsJson?.let(::parseNativeWeeklyStats)
+            if (statsJson != null) weeklyStats = parseNativeWeeklyStats(statsJson)
         }
     }
 
     val learning = remember(catalog, lessonProgress) { calculateNativeHomeLearning(catalog, lessonProgress) }
-    val completedCount = weeklyStats?.completedLessons?.takeIf { it > 0 }
-        ?: learning.allDone
+    val completedCount = weeklyStats?.completedLessons ?: learning.allDone
     val allLessonCount = catalog.lessons.size.takeIf { it > 0 } ?: 1296
     val stats = weeklyStats ?: NativeWeeklyStats(completedLessons = learning.allDone)
-    val days = stats.days.ifEmpty { fallbackDays() }
+    val days = remember(stats.days, isId) {
+        // Same as web normalizeBackendStats: server entries align to the seven local labels by index.
+        // Keep server values even if its date timezone differs from the device by a day.
+        fallbackDays(isId).mapIndexed { index, base ->
+            stats.days.getOrNull(index)?.copy(label = base.label) ?: base
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .background(NihongoPalette.background)
     ) {
+        if (destination != null) {
+            HomeLinkedDestination(
+                route = destination.orEmpty(), language = language, token = authToken,
+                repository = repository, chapter = learning.chapter, lessons = catalog.lessons,
+                progress = lessonProgress, currentLessonId = learning.lesson?.id,
+                onBack = { destination = null; refreshKey++ },
+                onNavigate = { destination = it }, onNotice = onNotice
+            )
+        } else {
         LazyColumn(
+            state = listState,
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(bottom = 18.dp)
         ) {
@@ -228,7 +286,8 @@ fun HomeScreen(
                 // Measure the real card height, instead of a 680dp fixed viewport + offset.
                 // This keeps the next section directly below the visible card on every device.
                 BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                    val heroHeight = (maxWidth * 1.28f).coerceIn(480.dp, 540.dp)
+                    // CSS Home web: min-height 506px. Android dp matches CSS px at normal density.
+                    val heroHeight = 506.dp
                     val overlap = 42.dp
                     Layout(
                         modifier = Modifier.fillMaxWidth(),
@@ -245,11 +304,8 @@ fun HomeScreen(
                                 learning = learning,
                                 modifier = Modifier.padding(horizontal = 18.dp),
                                 onClick = {
-                                    onNotice(
-                                        if (learning.lesson != null) {
-                                            if (isId) "Materi ${learning.lesson.titleId} siap dibuka. Halaman belajar native akan disambungkan berikutnya." else "${learning.lesson.titleEn} is ready. The native lesson screen will be connected next."
-                                        } else if (isId) "Materi sedang dimuat. Coba lagi sebentar." else "Lessons are loading. Please try again shortly."
-                                    )
+                                    if (learning.lesson != null) destination = "learn"
+                                    else onNotice(if (isId) "Materi sedang dimuat." else "Lessons are loading.")
                                 }
                             )
                         }
@@ -276,11 +332,7 @@ fun HomeScreen(
             }
             item {
                 RewardCenterNative(isId = isId, onAction = { action ->
-                    when (action) {
-                        "missions" -> onNotice(if (isId) "Misi: klaim XP dan kredit. Halaman Misi native akan disambungkan berikutnya." else "Missions: claim XP and credits. The native Missions page is next.")
-                        "topup" -> onNotice(if (isId) "Pembelian kredit aman dilakukan melalui halaman top up resmi NihonGo." else "Credit purchases are handled through NihonGo's official top-up page.")
-                        else -> onNotice(if (isId) "Riwayat XP dan kredit akan ditampilkan di halaman riwayat native." else "XP and credit logs will be shown on the native History page.")
-                    }
+                    destination = action
                 })
                 Spacer(Modifier.height(25.dp))
             }
@@ -291,8 +343,8 @@ fun HomeScreen(
                     days = days,
                     completedCount = completedCount,
                     totalLessons = allLessonCount,
-                    onDailyXp = { onNotice(if (isId) "Grafik XP harian menggunakan data tujuh hari dari server." else "The daily XP chart uses the server's seven-day activity data.") },
-                    onStudyStart = { onNotice(if (isId) "Pilih Lanjutkan Belajar untuk membuka materi berikutnya." else "Choose Continue Learning to open your next lesson.") },
+                    onDailyXp = {},
+                    onStudyStart = {},
                     onRetry = { refreshKey++ },
                     refreshError = refreshError
                 )
@@ -304,13 +356,14 @@ fun HomeScreen(
             onSelect = { key ->
                 when (key) {
                     "home" -> Unit
-                    "learn" -> onNotice(if (isId) "Menu Belajar native sedang disiapkan." else "The native Learn screen is being prepared.")
+                    "learn" -> destination = "learn"
                     "lab" -> onNotice(if (isId) "Menu Lab native sedang disiapkan." else "The native Lab screen is being prepared.")
                     "game" -> onNotice(if (isId) "Menu Game native sedang disiapkan." else "The native Game screen is being prepared.")
                     else -> onNotice(if (isId) "Menu Sensei native sedang disiapkan." else "The native Sensei screen is being prepared.")
                 }
             }
         )
+        }
     }
 
     if (showSettings) {
@@ -330,6 +383,10 @@ fun HomeScreen(
                         LanguageChoice("Indonesia", isId, onClick = { if (!isId) onToggleLanguage() }, modifier = Modifier.weight(1f))
                         LanguageChoice("English", !isId, onClick = { if (isId) onToggleLanguage() }, modifier = Modifier.weight(1f))
                     }
+                    Spacer(Modifier.height(16.dp))
+                    Text(if (isId) "Suara sapaan Sensei (Jepang)" else "Sensei's Japanese greeting", color = NihongoPalette.dim2, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    LanguageChoice(if (speechEnabled) (if (isId) "Aktif · ketuk untuk matikan" else "On · tap to disable") else (if (isId) "Nonaktif · ketuk untuk aktifkan" else "Off · tap to enable"), speechEnabled, onClick = { speechEnabled = !speechEnabled })
                 }
             },
             confirmButton = {
@@ -371,24 +428,25 @@ private fun HomeHeroNative(
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val compact = maxWidth < 360.dp
-        val avatarWidth = (maxWidth * 0.61f).coerceIn(188.dp, 264.dp)
-        val avatarHeight = (maxWidth * 0.98f).coerceIn(320.dp, 383.dp)
-        val introWidth = (maxWidth - 36.dp) * (if (compact) 0.51f else 0.55f)
+        val avatarWidth = maxWidth * 0.66f
+        val avatarHeight = 432.dp
+        val introWidth = (maxWidth - 36.dp) * 0.58f
 
         Image(
             painter = painterResource(heroDrawable),
             contentDescription = null,
             contentScale = ContentScale.Crop,
+            alignment = BiasAlignment(-0.52f, -0.60f), // web background-position: 24% 20%
             modifier = Modifier.fillMaxSize()
         )
         Box(
             Modifier.fillMaxSize().background(
                 Brush.verticalGradient(
                     colorStops = arrayOf(
-                        0f to Color(0x2205050B),
-                        0.30f to Color(0x2905050B),
-                        0.56f to Color(0x3605050B),
-                        0.80f to Color(0xA507070D),
+                        0f to Color(0xA305050B),
+                        0.30f to Color(0x4D05050B),
+                        0.52f to Color(0x2905050B),
+                        0.80f to Color(0xB807070D),
                         1f to NihongoPalette.background
                     )
                 )
@@ -409,7 +467,7 @@ private fun HomeHeroNative(
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .offset(x = 13.dp, y = if (compact) 137.dp else 124.dp)
+                .offset(x = 16.dp, y = 50.dp)
                 .width(avatarWidth)
                 .height(avatarHeight)
                 .zIndex(1f)
@@ -421,9 +479,8 @@ private fun HomeHeroNative(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopStart)
-                .statusBarsPadding()
                 .padding(horizontal = 18.dp)
-                .padding(top = 22.dp)
+                .padding(top = 24.dp)
                 .zIndex(2f)
         ) {
             Row(
@@ -465,14 +522,14 @@ private fun HomeHeroNative(
                 }
             }
             Spacer(Modifier.height(26.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.Top) {
-                Text("✿", color = NihongoPalette.redLight, fontSize = 18.sp, lineHeight = 25.sp)
-                Column(modifier = Modifier.width(introWidth)) {
+            Row(modifier = Modifier.width(introWidth), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
+                Text("✿", color = NihongoPalette.redLight, fontSize = 17.sp, lineHeight = 23.sp)
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         if (isId) "Selamat datang kembali, $firstName. Ayo lanjut belajar hari ini." else "Welcome back, $firstName. Let's continue learning today.",
                         color = Color.White,
-                        fontSize = if (compact) 15.sp else 16.sp,
-                        lineHeight = 21.sp,
+                        fontSize = 17.sp,
+                        lineHeight = 21.25.sp,
                         fontWeight = FontWeight.Black,
                         style = TextStyle(shadow = Shadow(Color(0xD6000000), Offset(0f, 3f), 9f))
                     )
@@ -519,7 +576,7 @@ private fun ContinueLearningNativeCard(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(jlpt, color = NihongoPalette.redSoft, fontSize = 24.sp, fontWeight = FontWeight.Black)
-                        Text(if (isId) "Dasar" else "Basic", color = NihongoPalette.dim, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(if (jlpt == "N4") (if (isId) "Lanjutan" else "Plus") else (if (isId) "Dasar" else "Basic"), color = NihongoPalette.dim, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 Spacer(Modifier.width(14.dp))
@@ -572,41 +629,32 @@ private fun ContinueLearningNativeCard(
 
 @Composable
 private fun RewardCenterNative(isId: Boolean, onAction: (String) -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxWidth().padding(bottom = 18.dp)) {
         Column(Modifier.padding(horizontal = 18.dp)) {
-            Text("Reward Center", color = NihongoPalette.white, fontSize = 20.sp, fontWeight = FontWeight.Black)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                if (isId) "Misi, top up, dan log XP/kredit" else "Missions, top up, and XP/credit logs",
-                color = NihongoPalette.dim, fontSize = 12.sp, fontWeight = FontWeight.SemiBold
-            )
+            Text("Reward Center", color = NihongoPalette.white, fontSize = 15.sp, fontWeight = FontWeight.Black)
+            Spacer(Modifier.height(3.dp))
+            Text(if (isId) "Misi, top up, dan log XP/kredit" else "Missions, top up, and XP/credit log", color = NihongoPalette.dim, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
         }
-        Spacer(Modifier.height(14.dp))
-        // 3 equal-weight native shortcuts: no offscreen third card, no 126dp clipping.
-        // Titles/subtitles can wrap, and each card grows with the device font scale.
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            RewardTile(
-                Modifier.weight(1f), Icons.Outlined.CardGiftcard,
-                if (isId) "Misi" else "Missions",
-                if (isId) "Klaim XP & kredit" else "Claim XP & credits",
-                Color(0xFF2DB36A), onClick = { onAction("missions") }
-            )
-            RewardTile(
-                Modifier.weight(1f), Icons.Outlined.CreditCard,
-                if (isId) "Beli Kredit" else "Buy Credits",
-                if (isId) "Paket 1.000+" else "1,000+ packs",
-                Color(0xFFE2B957), onClick = { onAction("topup") }
-            )
-            RewardTile(
-                Modifier.weight(1f), Icons.Outlined.History,
-                if (isId) "Riwayat" else "History",
-                if (isId) "Log XP & kredit" else "XP & credit logs",
-                Color(0xFF9C6AFF), onClick = { onAction("history") }
-            )
+        Spacer(Modifier.height(10.dp))
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = 18.dp)) {
+            // Web card width 126px, but fit all three at standard 360-400dp phones.
+            // Narrow screens retain swipe access instead of clipping a destination.
+            val available = maxWidth
+            val cardWidth = minOf(126.dp, ((available - 20.dp) / 3f).coerceAtLeast(112.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                RewardTile(Modifier.width(cardWidth), Icons.Outlined.CardGiftcard,
+                    if (isId) "Misi" else "Missions", if (isId) "Klaim XP & kredit" else "Claim XP & credits",
+                    NihongoPalette.green, onClick = { onAction("missions") })
+                RewardTile(Modifier.width(cardWidth), Icons.Outlined.CreditCard,
+                    if (isId) "Beli Kredit" else "Buy Credits", if (isId) "Paket 1.000+" else "Packages 1,000+",
+                    Color(0xFFE2B957), onClick = { onAction("topup") })
+                RewardTile(Modifier.width(cardWidth), Icons.Outlined.History,
+                    if (isId) "Riwayat" else "History", if (isId) "Log XP & kredit" else "XP & credit log",
+                    Color(0xFFA66DFF), onClick = { onAction("history") })
+            }
         }
     }
 }
@@ -621,40 +669,25 @@ private fun RewardTile(
     onClick: () -> Unit
 ) {
     Surface(
-        modifier = modifier.heightIn(min = 156.dp).clickable(onClick = onClick),
-        shape = RoundedCornerShape(22.dp),
+        modifier = modifier.heightIn(min = 108.dp).clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
         color = NihongoPalette.surface,
         border = androidx.compose.foundation.BorderStroke(1.dp, NihongoPalette.borderStrong)
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 9.dp, vertical = 12.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(36.dp)
-                        .clip(RoundedCornerShape(13.dp))
+                    Modifier.size(36.dp).clip(RoundedCornerShape(14.dp))
                         .background(accent.copy(alpha = 0.12f))
-                        .border(1.dp, accent.copy(alpha = 0.25f), RoundedCornerShape(13.dp)),
+                        .border(1.dp, accent.copy(alpha = 0.27f), RoundedCornerShape(14.dp)),
                     contentAlignment = Alignment.Center
-                ) {
-                    Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(19.dp))
-                }
-                Text("›", color = NihongoPalette.dim, fontSize = 23.sp, lineHeight = 25.sp)
+                ) { Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp)) }
+                Text("›", color = NihongoPalette.dim, fontSize = 20.sp)
             }
-            Spacer(Modifier.height(12.dp))
-            Text(
-                title, color = NihongoPalette.white, fontSize = 12.5.sp,
-                lineHeight = 16.sp, fontWeight = FontWeight.Black,
-                minLines = 2, maxLines = 2
-            )
-            Spacer(Modifier.height(5.dp))
-            Text(
-                detail, color = NihongoPalette.dim, fontSize = 10.sp,
-                lineHeight = 13.sp, fontWeight = FontWeight.SemiBold,
-                minLines = 2, maxLines = 3
-            )
+            Spacer(Modifier.height(10.dp))
+            Text(title, color = NihongoPalette.white, fontSize = 13.sp, lineHeight = 15.sp, fontWeight = FontWeight.Black, maxLines = 2)
+            Spacer(Modifier.height(4.dp))
+            Text(detail, color = NihongoPalette.dim, fontSize = 10.5.sp, lineHeight = 13.sp, fontWeight = FontWeight.Bold, minLines = 2)
         }
     }
 }
@@ -676,13 +709,13 @@ private fun WeeklyStatisticsNative(
     Column(Modifier.padding(horizontal = 18.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.weight(1f)) {
-                Text(if (isId) "Statistik Mingguan" else "Weekly Statistics", color = NihongoPalette.white, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                Text(if (isId) "Statistik Mingguan" else "Weekly Stats", color = NihongoPalette.white, fontSize = 15.sp, fontWeight = FontWeight.Black)
                 Spacer(Modifier.height(4.dp))
-                Text(if (isId) "Ringkasan progres dari aktivitas belajar" else "Progress summary from learning activity", color = NihongoPalette.dim, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(if (isId) "Ringkasan progres dari aktivitas belajar" else "Progress summary from your study activity", color = NihongoPalette.dim, fontSize = 10.5.sp, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.width(8.dp))
             Surface(
-                modifier = Modifier.clickable(onClick = onDailyXp),
+                modifier = Modifier,
                 shape = CircleShape,
                 color = NihongoPalette.surface,
                 border = androidx.compose.foundation.BorderStroke(1.dp, NihongoPalette.borderStrong)
@@ -690,11 +723,11 @@ private fun WeeklyStatisticsNative(
                 Row(Modifier.padding(horizontal = 13.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.TrendingUp, contentDescription = null, tint = NihongoPalette.redLight, modifier = Modifier.size(17.dp))
                     Spacer(Modifier.width(7.dp))
-                    Text(if (isId) "XP Harian" else "Daily XP", color = NihongoPalette.white, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(if (isId) "XP Harian" else "Daily XP", color = NihongoPalette.white, fontSize = 10.5.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
 
         EconomyLevelCard(isId = isId, stats = stats)
         Spacer(Modifier.height(12.dp))
@@ -736,27 +769,27 @@ private fun EconomyLevelCard(isId: Boolean, stats: NativeWeeklyStats) {
     val progress = (stats.levelProgressPct.coerceIn(0, 100) / 100f)
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(22.dp),
         color = NihongoPalette.surface,
         border = androidx.compose.foundation.BorderStroke(1.dp, NihongoPalette.borderStrong)
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(64.dp).clip(RoundedCornerShape(20.dp)).background(Color(0x24DEB55A)).border(1.dp, Color(0x4CDEB55A), RoundedCornerShape(20.dp)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.EmojiEvents, contentDescription = null, tint = Color(0xFFE2BD58), modifier = Modifier.size(34.dp))
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(16.dp)).background(Color(0x24DEB55A)).border(1.dp, Color(0x4CDEB55A), RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.EmojiEvents, contentDescription = null, tint = Color(0xFFE2BD58), modifier = Modifier.size(22.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Level ${stats.level}", color = NihongoPalette.white, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                    Text("Level ${stats.level}", color = NihongoPalette.white, fontSize = 17.sp, fontWeight = FontWeight.Black)
                     Spacer(Modifier.height(4.dp))
                     Text(
                         if (isId) "${stats.xpIntoLevel} / ${stats.xpForNext} XP ke level berikutnya" else "${stats.xpIntoLevel} / ${stats.xpForNext} XP to next level",
-                        color = NihongoPalette.dim, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis
+                        color = NihongoPalette.dim, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis
                     )
                 }
                 Spacer(Modifier.width(7.dp))
                 Column(
-                    Modifier.width(92.dp).clip(RoundedCornerShape(20.dp)).background(Color(0x1FDEB55A)).border(1.dp, Color(0x3BDEB55A), RoundedCornerShape(20.dp)).padding(horizontal = 9.dp, vertical = 12.dp),
+                    Modifier.width(82.dp).clip(RoundedCornerShape(18.dp)).background(Color(0x1FDEB55A)).border(1.dp, Color(0x3BDEB55A), RoundedCornerShape(18.dp)).padding(horizontal = 9.dp, vertical = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(Icons.Outlined.CreditCard, contentDescription = null, tint = Color(0xFFE2BD58), modifier = Modifier.size(21.dp))
@@ -765,7 +798,7 @@ private fun EconomyLevelCard(isId: Boolean, stats: NativeWeeklyStats) {
                     Text(if (isId) "Kredit" else "Credits", color = NihongoPalette.dim, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(14.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(if (isId) "Progress Level ${stats.level}" else "Level ${stats.level} progress", color = NihongoPalette.dim, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 Text("${stats.levelProgressPct}%", color = Color(0xFFE2BD58), fontSize = 11.sp, fontWeight = FontWeight.Black)
@@ -780,57 +813,58 @@ private fun EconomyLevelCard(isId: Boolean, stats: NativeWeeklyStats) {
 
 @Composable
 private fun WeeklyXpChart(isId: Boolean, days: List<NativeDayStat>, isEmpty: Boolean) {
-    val ticks = listOf("100", "75", "50", "25", "0")
+    val largest = maxOf(100, days.maxOfOrNull { it.xp } ?: 0)
+    val magnitude = 10.0.pow(floor(kotlin.math.log10(largest.toDouble())))
+    val norm = largest / magnitude
+    val factor = when { norm <= 1 -> 1.0; norm <= 2 -> 2.0; norm <= 5 -> 5.0; else -> 10.0 }
+    val ceiling = maxOf(100, (factor * magnitude).roundToInt())
+    val ticks = listOf(ceiling, (ceiling * .75).roundToInt(), (ceiling * .50).roundToInt(), (ceiling * .25).roundToInt(), 0)
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        color = NihongoPalette.surface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, NihongoPalette.borderStrong)
+        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp),
+        color = NihongoPalette.surface, border = androidx.compose.foundation.BorderStroke(1.dp, NihongoPalette.borderStrong)
     ) {
-        Column(Modifier.padding(horizontal = 15.dp, vertical = 15.dp)) {
-            Box(Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth().height(178.dp)) {
-                    Column(Modifier.width(35.dp).fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-                        ticks.forEach { Text(it, color = NihongoPalette.dim, fontSize = 10.sp, fontWeight = FontWeight.SemiBold) }
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 18.dp)) {
+            Box(Modifier.fillMaxWidth().height(156.dp)) {
+                Row(Modifier.fillMaxSize()) {
+                    Column(
+                        Modifier.width(34.dp).fillMaxSize().padding(bottom = 24.dp),
+                        verticalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        ticks.forEach { Text(formatCompactCredits(it.toLong()), color = NihongoPalette.dim, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                     }
-                    Canvas(Modifier.weight(1f).fillMaxSize().padding(start = 5.dp, end = 1.dp)) {
-                        val w = size.width
-                        val h = size.height
-                        val grid = Color(0x16FFFFFF)
-                        for (i in 0..4) {
-                            val y = h * i / 4f
-                            drawLine(grid, Offset(0f, y), Offset(w, y), strokeWidth = 1.dp.toPx())
+                    Box(Modifier.weight(1f).fillMaxSize()) {
+                        Canvas(Modifier.fillMaxSize().padding(bottom = 24.dp)) {
+                            val w = size.width
+                            val h = size.height
+                            val slot = w / days.size.coerceAtLeast(1)
+                            val barWidth = minOf(24.dp.toPx(), slot * .72f)
+                            for (i in 0..4) {
+                                val y = h * i / 4f
+                                drawLine(NihongoPalette.border, Offset(0f, y), Offset(w, y), strokeWidth = 1.dp.toPx())
+                            }
+                            days.forEachIndexed { index, day ->
+                                val ratio = (day.xp.toFloat() / ceiling).coerceIn(0f, 1f)
+                                val barHeight = if (day.xp == 0) 4.dp.toPx() else maxOf(9.dp.toPx(), (h * ratio * .72f))
+                                val x = slot * index + (slot - barWidth) / 2f
+                                drawRoundRect(
+                                    brush = Brush.verticalGradient(if (day.xp > 0) listOf(NihongoPalette.redLight, NihongoPalette.red) else listOf(NihongoPalette.dim.copy(alpha = .25f), NihongoPalette.dim.copy(alpha = .25f))),
+                                    topLeft = Offset(x, h - barHeight), size = Size(barWidth, barHeight),
+                                    cornerRadius = CornerRadius(5.dp.toPx())
+                                )
+                            }
                         }
-                        val maxValue = maxOf(100f, days.maxOfOrNull { it.xp.toFloat() } ?: 0f)
-                        val slot = w / days.size.coerceAtLeast(1)
-                        val barWidth = minOf(40.dp.toPx(), slot * 0.52f)
-                        days.forEachIndexed { index, day ->
-                            val raw = (day.xp / maxValue).coerceIn(0f, 1f)
-                            val barHeight = (h * raw).coerceAtLeast(if (day.xp > 0) 7.dp.toPx() else 3.dp.toPx())
-                            val x = slot * index + (slot - barWidth) / 2f
-                            drawRoundRect(
-                                color = Color(0xFFE0353B).copy(alpha = if (day.xp > 0) 0.92f else 0.12f),
-                                topLeft = Offset(x, h - barHeight),
-                                size = Size(barWidth, barHeight),
-                                cornerRadius = CornerRadius(7.dp.toPx(), 7.dp.toPx())
-                            )
+                        Row(Modifier.fillMaxWidth().align(Alignment.BottomCenter), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            days.forEach { day ->
+                                Text(day.label, Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    color = NihongoPalette.dim, fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            }
                         }
                     }
                 }
                 if (isEmpty) {
-                    Text(
-                        if (isId) "Belum ada aktivitas minggu ini" else "No activity this week yet",
-                        color = NihongoPalette.dim,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.align(Alignment.Center).padding(start = 28.dp, end = 3.dp)
-                    )
-                }
-            }
-            Spacer(Modifier.height(6.dp))
-            Row(Modifier.fillMaxWidth().padding(start = 35.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                days.forEach { day ->
-                    Text(day.label.ifBlank { "—" }, color = NihongoPalette.dim, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 1)
+                    Text(if (isId) "Belum ada aktivitas minggu ini" else "No activity this week yet",
+                        color = NihongoPalette.dim, fontSize = 11.5.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.Center).padding(start = 30.dp))
                 }
             }
         }
@@ -848,20 +882,20 @@ private fun WeeklyMetricCard(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(25.dp),
+        shape = RoundedCornerShape(20.dp),
         color = NihongoPalette.surface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.15f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.20f))
     ) {
-        Column(Modifier.padding(15.dp)) {
+        Column(Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(55.dp).clip(RoundedCornerShape(20.dp)).background(accent.copy(alpha = 0.11f)).border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(20.dp)), contentAlignment = Alignment.Center) {
-                    Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(28.dp))
+                Box(Modifier.size(38.dp).clip(RoundedCornerShape(14.dp)).background(accent.copy(alpha = 0.11f)).border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
                 }
                 Spacer(Modifier.width(9.dp))
                 Text(label, color = NihongoPalette.dim, fontSize = 11.sp, fontWeight = FontWeight.Black, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            Spacer(Modifier.height(11.dp))
-            Text(value, color = accent, fontSize = 22.sp, lineHeight = 26.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(9.dp))
+            Text(value, color = accent, fontSize = 20.sp, lineHeight = 24.sp, fontWeight = FontWeight.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(5.dp))
             Text(detail, color = NihongoPalette.dim, fontSize = 10.5.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
@@ -876,108 +910,167 @@ private fun StreakStudyCard(
     isMinutesEmpty: Boolean,
     onStudyStart: () -> Unit
 ) {
+    var selectedDay by remember(days) { mutableIntStateOf(-1) }
+    val maxMinutes = maxOf(1f, days.maxOfOrNull { it.minutes.toFloat() } ?: 0f)
     Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
+        modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp),
         color = NihongoPalette.surface,
         border = androidx.compose.foundation.BorderStroke(1.dp, NihongoPalette.borderStrong)
     ) {
-        Column(Modifier.padding(18.dp)) {
+        Column(Modifier.padding(15.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(78.dp).clip(RoundedCornerShape(23.dp)).background(Color(0x1EE0353B)).border(1.dp, Color(0x3EE0353B), RoundedCornerShape(23.dp)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.LocalFireDepartment, contentDescription = null, tint = Color(0xFFE33A42), modifier = Modifier.size(37.dp))
-                }
-                Spacer(Modifier.width(14.dp))
-                Column {
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text("${stats.streak}", color = NihongoPalette.white, fontSize = 35.sp, lineHeight = 37.sp, fontWeight = FontWeight.Black)
-                        Spacer(Modifier.width(9.dp))
-                        Text(if (isId) "hari streak" else "day streak", color = NihongoPalette.dim, fontSize = 15.sp, fontWeight = FontWeight.Black, modifier = Modifier.padding(bottom = 5.dp))
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    Text(if (isId) "Pertahankan ritmenya!" else "Keep your rhythm!", color = NihongoPalette.white, fontSize = 16.sp, fontWeight = FontWeight.Black)
-                    Spacer(Modifier.height(5.dp))
-                    Text(if (isId) "Aktif sedikit tiap hari lebih aman daripada ngebut semalam." else "A little every day beats cramming overnight.", color = NihongoPalette.dim, fontSize = 12.sp, lineHeight = 17.sp, fontWeight = FontWeight.SemiBold)
-                }
-            }
-            Spacer(Modifier.height(25.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
-                days.forEach { day ->
-                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            Modifier.size(33.dp).clip(CircleShape)
-                                .background(if (day.active) Color(0x2DE0353B) else Color(0x18A7A0C8))
-                                .border(1.dp, if (day.active) Color(0x85E0353B) else Color(0x22A7A0C8), CircleShape)
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Text(day.label, color = NihongoPalette.dim, fontSize = 9.5.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                    }
-                }
-            }
-            Spacer(Modifier.height(25.dp))
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x14FFFFFF)))
-            Spacer(Modifier.height(18.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(66.dp).clip(RoundedCornerShape(22.dp)).background(Color(0x249B61FF)).border(1.dp, Color(0x3C9B61FF), RoundedCornerShape(22.dp)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.AccessTime, contentDescription = null, tint = Color(0xFFA96FFF), modifier = Modifier.size(34.dp))
+                Box(Modifier.size(50.dp).clip(RoundedCornerShape(18.dp))
+                    .background(Color(0x24E0353B)).border(1.dp, Color(0x4CE0353B), RoundedCornerShape(18.dp)),
+                    contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.LocalFireDepartment, contentDescription = null,
+                        tint = NihongoPalette.redLight, modifier = Modifier.size(26.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(if (isId) "Estimasi belajar" else "Study estimate", color = NihongoPalette.dim, fontSize = 12.sp, fontWeight = FontWeight.Black)
-                    Text("${stats.studyMinutes} menit", color = Color(0xFFA96FFF), fontSize = 32.sp, lineHeight = 36.sp, fontWeight = FontWeight.Black)
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text("${stats.streak}", color = NihongoPalette.white, fontSize = 24.sp,
+                            lineHeight = 26.sp, fontWeight = FontWeight.Black)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (isId) "hari streak" else "day streak", color = NihongoPalette.dim,
+                            fontSize = 12.5.sp, fontWeight = FontWeight.Black)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(if (isId) "Pertahankan ritmenya!" else "Keep the rhythm!",
+                        color = NihongoPalette.white, fontSize = 14.sp, fontWeight = FontWeight.Black)
+                    Spacer(Modifier.height(4.dp))
+                    Text(if (isId) "Aktif sedikit tiap hari lebih aman daripada ngebut semalam." else "A little daily practice beats a single long sprint.",
+                        color = NihongoPalette.dim, fontSize = 11.sp, lineHeight = 14.5.sp, fontWeight = FontWeight.SemiBold)
                 }
-                Box(
-                    Modifier.clip(CircleShape).background(Color(0x279B61FF)).border(1.dp, Color(0x409B61FF), CircleShape)
-                        .clickable(onClick = onStudyStart).padding(horizontal = 13.dp, vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFA96FFF)))
-                        Spacer(Modifier.width(7.dp))
-                        Text(if (isId) "Mulai" else "Start", color = Color(0xFFA96FFF), fontSize = 12.sp, fontWeight = FontWeight.Black)
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                days.forEach { day ->
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.size(22.dp).clip(CircleShape)
+                            .background(if (day.active) NihongoPalette.redLight else NihongoPalette.surface3)
+                            .border(1.dp, NihongoPalette.borderStrong, CircleShape),
+                            contentAlignment = Alignment.Center) {
+                            if (day.active) Text("✓", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                        }
+                        Spacer(Modifier.height(5.dp))
+                        Text(day.label, color = NihongoPalette.dim, fontSize = 9.sp, fontWeight = FontWeight.Black)
                     }
                 }
             }
-            Spacer(Modifier.height(15.dp))
-            Text(
-                if (isId) "Rata-rata ${stats.averageMinutes} mnt/hari" else "Average ${stats.averageMinutes} min/day",
-                color = Color(0xFF2DB36A), fontSize = 14.sp, fontWeight = FontWeight.Black
-            )
-            Spacer(Modifier.height(35.dp))
-            Box(Modifier.fillMaxWidth().height(94.dp)) {
-                Canvas(Modifier.fillMaxSize()) {
-                    val w = size.width
-                    val h = size.height
-                    val top = 12.dp.toPx()
-                    val bottom = h - 9.dp.toPx()
-                    for (i in 0..3) {
-                        val y = top + (bottom - top) * i / 3f
-                        drawLine(Color(0x13FFFFFF), Offset(0f, y), Offset(w, y), strokeWidth = 1.dp.toPx())
-                    }
-                    val maxValue = maxOf(1f, days.maxOfOrNull { it.minutes.toFloat() } ?: 0f)
-                    val slot = w / days.size.coerceAtLeast(1)
-                    val path = Path()
-                    val points = days.mapIndexed { index, day ->
-                        val valueRatio = if (isMinutesEmpty) 0.05f else (day.minutes / maxValue).coerceIn(0f, 1f)
-                        Offset(slot * index + slot / 2f, bottom - (bottom - top) * valueRatio)
-                    }
-                    points.forEachIndexed { index, point -> if (index == 0) path.moveTo(point.x, point.y) else path.lineTo(point.x, point.y) }
-                    drawPath(path, Color(0xFFA96FFF), style = Stroke(width = 2.5.dp.toPx()))
-                    points.forEach { point ->
-                        drawCircle(Color(0xFFA96FFF), radius = 4.5.dp.toPx(), center = point)
-                        drawCircle(NihongoPalette.surface, radius = 2.dp.toPx(), center = point)
-                    }
+            Spacer(Modifier.height(14.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(NihongoPalette.border))
+            Spacer(Modifier.height(14.dp))
+            Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.size(42.dp).clip(RoundedCornerShape(15.dp))
+                    .background(Color(0x24A66DFF)).border(1.dp, Color(0x52A66DFF), RoundedCornerShape(15.dp)),
+                    contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.AccessTime, contentDescription = null,
+                        tint = Color(0xFFA66DFF), modifier = Modifier.size(21.dp))
                 }
-                if (isMinutesEmpty) {
-                    Text(if (isId) "Belajar sebentar untuk mulai grafik" else "Study a little to start your graph", color = NihongoPalette.dim, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Center))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(if (isId) "Estimasi belajar" else "Study estimate",
+                        color = NihongoPalette.dim, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text(formatNativeDuration(stats.studyMinutes, isId), color = Color(0xFFA66DFF),
+                        fontSize = 28.sp, fontWeight = FontWeight.Black, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis)
+                }
+                Surface(
+                    modifier = Modifier, shape = CircleShape,
+                    color = Color(0x20A66DFF), border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x50A66DFF))
+                ) {
+                    Text(if (isMinutesEmpty) (if (isId) "Mulai" else "Start") else (if (isId) "Stabil" else "Stable"),
+                        Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                        color = Color(0xFFA66DFF), fontWeight = FontWeight.Black, fontSize = 10.5.sp)
                 }
             }
             Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                days.forEach { day -> Text(day.label, color = NihongoPalette.dim, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1) }
+            Text(if (isId) "Rata-rata ${formatNativeDuration(stats.averageMinutes, isId, true)}/hari"
+                 else "Average ${formatNativeDuration(stats.averageMinutes, isId, true)}/day",
+                color = NihongoPalette.green, fontSize = 12.sp, fontWeight = FontWeight.Black)
+            Spacer(Modifier.height(10.dp))
+            Box(Modifier.fillMaxWidth().height(93.dp)) {
+                Canvas(Modifier.fillMaxSize().pointerInput(days) {
+                    detectTapGestures(onTap = { pos ->
+                        val dayIndex = (pos.x / size.width * days.size).toInt().coerceIn(0, days.lastIndex)
+                        selectedDay = if (selectedDay == dayIndex) -1 else dayIndex
+                    })
+                }) {
+                    val w = size.width
+                    val h = size.height
+                    val top = 10.dp.toPx()
+                    val bottom = h - 9.dp.toPx()
+                    for (i in 0..3) {
+                        val y = top + (bottom - top) * i / 3f
+                        drawLine(NihongoPalette.border, Offset(0f, y), Offset(w, y), strokeWidth = 1.dp.toPx())
+                    }
+                    val slot = w / days.size.coerceAtLeast(1)
+                    val points = days.mapIndexed { i, day ->
+                        Offset(slot * (i + .5f), bottom - (bottom - top) * (day.minutes / maxMinutes).coerceIn(0f, 1f))
+                    }
+                    val path = Path()
+                    if (points.size > 1) {
+                        path.moveTo(points.first().x, points.first().y)
+                        points.drop(1).forEachIndexed { index, point ->
+                            val previous = points[index]
+                            path.quadraticTo(previous.x, previous.y, (previous.x + point.x) / 2f, (previous.y + point.y) / 2f)
+                        }
+                        val previous = points[points.lastIndex - 1]
+                        val last = points.last()
+                        path.quadraticTo(previous.x, previous.y, last.x, last.y)
+                        val area = Path().apply {
+                            addPath(path)
+                            lineTo(last.x, bottom)
+                            lineTo(points.first().x, bottom)
+                            close()
+                        }
+                        drawPath(area, Brush.verticalGradient(listOf(Color(0x55A66DFF), Color(0x05A66DFF))))
+                        drawPath(path, Color(0xFFA66DFF), style = Stroke(width = 2.8.dp.toPx()))
+                    }
+                    points.forEachIndexed { idx, point ->
+                        drawCircle(if (days[idx].minutes > 0) Color(0xFFA66DFF) else NihongoPalette.surface3,
+                            radius = if (idx == selectedDay) 5.dp.toPx() else 3.4.dp.toPx(), center = point)
+                        drawCircle(Color(0xFFA66DFF), radius = 1.dp.toPx(), center = point)
+                    }
+                }
+                if (selectedDay in days.indices) {
+                    val day = days[selectedDay]
+                    Surface(modifier = Modifier.align(Alignment.TopCenter).clickable { selectedDay = -1 },
+                        shape = RoundedCornerShape(12.dp), color = Color(0xFF241D37),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x66A66DFF))) {
+                        Text("${day.label} • ${formatNativeDuration(day.minutes, isId, true)}",
+                            Modifier.padding(horizontal = 10.dp, vertical = 7.dp), color = NihongoPalette.white,
+                            fontSize = 11.sp, fontWeight = FontWeight.Black)
+                    }
+                } else if (isMinutesEmpty) {
+                    Text(if (isId) "Belum ada aktivitas belajar" else "No study activity yet",
+                        color = NihongoPalette.dim, fontSize = 11.sp,
+                        modifier = Modifier.align(Alignment.Center))
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                days.forEach { day ->
+                    Text(day.label, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        color = NihongoPalette.dim, fontSize = 9.sp)
+                }
             }
         }
     }
+}
+
+private fun formatNativeDuration(minutes: Int, isId: Boolean, compact: Boolean = false): String {
+    val safe = minutes.coerceAtLeast(0)
+    val unit = if (isId) (if (compact) "mnt" else "menit") else "min"
+    if (safe < 60) return "$safe $unit"
+    val hours = safe / 60
+    if (hours < 24) return "$hours ${if (isId) "jam" else "hr"}" + if (safe % 60 > 0) " ${safe % 60} $unit" else ""
+    val days = hours / 24
+    if (days < 7) return "$days ${if (isId) "hari" else "days"}"
+    val weeks = days / 7
+    if (weeks < 4) return "$weeks ${if (isId) "minggu" else "weeks"}"
+    val months = days / 30
+    if (months < 12) return "${months.coerceAtLeast(1)} ${if (isId) "bulan" else "mo"}"
+    return "${(days / 365).coerceAtLeast(1)} ${if (isId) "tahun" else "yr"}"
 }
 
 @Composable
@@ -1071,7 +1164,8 @@ private fun parseNativeProgress(root: JSONObject): Map<String, NativeLessonProgr
     }
 }
 
-private fun parseNativeWeeklyStats(root: JSONObject): NativeWeeklyStats {
+private fun parseNativeWeeklyStats(response: JSONObject): NativeWeeklyStats {
+    val root = response.optJSONObject("stats") ?: response
     val summary = root.optJSONObject("summary") ?: root
     val economy = root.optJSONObject("economy") ?: JSONObject()
     val balance = root.optJSONObject("balance") ?: JSONObject()
@@ -1128,16 +1222,34 @@ private fun calculateNativeHomeLearning(
         chapterDone = done,
         chapterTotal = total,
         chapterPct = percent,
-        allDone = progress.values.count { it.completed }
+        allDone = catalog.lessons.count { progress[it.id]?.passed == true }
     )
 }
 
-private fun fallbackDays(): List<NativeDayStat> = listOf("Kam", "Jum", "Sab", "Min", "Sen", "Sel", "Rab").mapIndexed { index, label ->
-    NativeDayStat("$index", label, 0, 0, false)
+private fun fallbackDays(isId: Boolean): List<NativeDayStat> {
+    val labels = if (isId) listOf("Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab")
+                 else listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+    return (6 downTo 0).map { before ->
+        val day = Calendar.getInstance().apply { add(Calendar.DATE, -before) }
+        val key = "%04d-%02d-%02d".format(Locale.US, day.get(Calendar.YEAR), day.get(Calendar.MONTH) + 1, day.get(Calendar.DATE))
+        NativeDayStat(key, labels[day.get(Calendar.DAY_OF_WEEK) - 1], 0, 0, false)
+    }
 }
 
 private fun formatCompactCredits(value: Long): String = when {
     value >= 1_000_000L -> "${((value / 100_000.0).roundToInt() / 10.0).toString().removeSuffix(".0")}jt"
     value >= 1_000L -> "${((value / 100.0).roundToInt() / 10.0).toString().removeSuffix(".0")}rb"
     else -> value.toString()
+}
+
+/** Find Activity lifecycle even when Compose LocalContext is a themed wrapper. */
+private fun findNativeLifecycleOwner(context: Context): LifecycleOwner? {
+    var current: Context = context
+    while (current is ContextWrapper) {
+        if (current is LifecycleOwner) return current
+        val next = current.baseContext
+        if (next === current) break
+        current = next
+    }
+    return current as? LifecycleOwner
 }
