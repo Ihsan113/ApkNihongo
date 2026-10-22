@@ -123,7 +123,7 @@ fun NihongoRoot(
             .background(NihongoPalette.background)
     ) {
         when (stage) {
-            NativeStage.Booting -> BootScreen()
+            NativeStage.Booting -> NativeGlobalLoading(language = language, variant = "account")
             NativeStage.Login -> LoginScreen(
                 activity = activity,
                 repository = repository,
@@ -177,22 +177,3 @@ fun NihongoRoot(
     }
 }
 
-@Composable
-private fun BootScreen() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        androidx.compose.foundation.layout.Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            androidx.compose.material3.Text(
-                text = "日本語",
-                color = NihongoPalette.redLight,
-                style = androidx.compose.material3.MaterialTheme.typography.headlineLarge
-            )
-            androidx.compose.foundation.layout.Spacer(Modifier.height(10.dp))
-            CircularProgressIndicator(color = NihongoPalette.redLight, strokeWidth = 2.dp)
-        }
-    }
-}

@@ -200,7 +200,19 @@ fun HomeScreen(
     var weeklyStats by remember { mutableStateOf<NativeWeeklyStats?>(null) }
     var refreshError by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableStateOf(0) }
+    var catalogLoaded by remember(authToken) { mutableStateOf(false) }
+    var firstHomeFetchCompleted by remember(authToken) { mutableStateOf(false) }
+    val initialHomeReady = catalogLoaded && firstHomeFetchCompleted
     var destination by remember { mutableStateOf<String?>(null) }
+    val destinationStack = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+    fun openNested(destinationId: String) {
+        destination?.let { previous -> if (previous != destinationId) destinationStack.add(previous) }
+        destination = destinationId
+    }
+    fun backNested() {
+        destination = if (destinationStack.isNotEmpty()) destinationStack.removeAt(destinationStack.lastIndex) else null
+        if (destination == null) refreshKey++
+    }
     // The Home is only a handful of sections. Keep the 3D renderer in the composition
     // while scrolling through Rewards / Stats so returning to the hero does not
     // re-create a 6.5 MB GLB and a Filament context during a fling.
@@ -242,7 +254,7 @@ fun HomeScreen(
             .trim().split(Regex("\\s+")).firstOrNull().orEmpty().ifBlank { "Sensei" }
     }
     NativeHomeSpeech(
-        enabled = settings.speechEnabled && destination == null && !showSettings && appIsForeground,
+        enabled = settings.speechEnabled && initialHomeReady && destination == null && !showSettings && appIsForeground,
         rate = settings.speechRate, pitch = settings.speechPitch, volume = settings.speechVolume,
         onSpeaking = { senseiSpeaking = it },
         onViseme = { senseiViseme = it },
@@ -265,19 +277,28 @@ fun HomeScreen(
     }
 
     LaunchedEffect(Unit) {
-        catalog = withContext(Dispatchers.IO) { readNativeLessonCatalog(context) }
+        try {
+            catalog = withContext(Dispatchers.IO) { readNativeLessonCatalog(context) }
+        } finally {
+            catalogLoaded = true
+        }
     }
     LaunchedEffect(authToken, language, refreshKey) {
         if (authToken.isBlank()) return@LaunchedEffect
         refreshError = false
-        coroutineScope {
-            val progressTask = async { runCatching { repository.fetchProgress(authToken) }.getOrNull() }
-            val statsTask = async { runCatching { repository.fetchWeeklyStats(authToken, language) }.getOrNull() }
-            val progressJson = progressTask.await()
-            val statsJson = statsTask.await()
-            if (progressJson == null || statsJson == null) refreshError = true
-            if (progressJson != null) lessonProgress = parseNativeProgress(progressJson)
-            if (statsJson != null) weeklyStats = parseNativeWeeklyStats(statsJson)
+        try {
+            coroutineScope {
+                val progressTask = async { runCatching { repository.fetchProgress(authToken) }.getOrNull() }
+                val statsTask = async { runCatching { repository.fetchWeeklyStats(authToken, language) }.getOrNull() }
+                val progressJson = progressTask.await()
+                val statsJson = statsTask.await()
+                if (progressJson == null || statsJson == null) refreshError = true
+                if (progressJson != null) lessonProgress = parseNativeProgress(progressJson)
+                if (statsJson != null) weeklyStats = parseNativeWeeklyStats(statsJson)
+            }
+        } finally {
+            // Show the real Home even on network error so the retry action remains reachable.
+            firstHomeFetchCompleted = true
         }
     }
 
@@ -293,6 +314,7 @@ fun HomeScreen(
         }
     }
 
+    Box(Modifier.fillMaxSize().background(NihongoPalette.background)) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -318,8 +340,8 @@ fun HomeScreen(
                 route = destination.orEmpty(), language = language, token = authToken,
                 repository = repository, chapter = learning.chapter, lessons = catalog.lessons,
                 progress = lessonProgress, currentLessonId = learning.lesson?.id,
-                onBack = { destination = null; refreshKey++ },
-                onNavigate = { destination = it }, onNotice = onNotice
+                onBack = { backNested() },
+                onNavigate = { openNested(it) }, onNotice = onNotice
             )
         } else {
         Column(
@@ -408,8 +430,10 @@ fun HomeScreen(
         )
         }
     }
-
-
+    if (!initialHomeReady && !showSettings && destination == null) {
+        NativeGlobalLoading(language = language, variant = "page", compact = true)
+    }
+    } // Full-screen loading overlay; underlying Home remains composed for warm-up.
 }
 
 @Composable

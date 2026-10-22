@@ -8,6 +8,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
+import java.util.Locale
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
@@ -84,6 +85,65 @@ class AuthRepository {
         val requestedKind = if (kind == "xp" || kind == "credit") "&kind=$kind" else ""
         request("/api/credits/history?lang=${if (language == "en") "en" else "id"}&page=${page.coerceAtLeast(1)}&limit=20$requestedKind", token = token)
     }
+
+    /** Purchase and ledger endpoints mirror the web checkout. The server alone owns amounts and status. */
+    suspend fun fetchPaymentMethods(token: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/credits/payment-methods", token = token)
+    }
+
+    suspend fun createCreditOrder(token: String, packageId: String, language: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/credits/purchase/create", method = "POST", token = token,
+            body = JSONObject().put("packageId", packageId).put("lang", if (language == "en") "en" else "id").toString())
+    }
+
+    suspend fun createPremiumOrder(token: String, language: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/credits/premium/purchase/create", method = "POST", token = token,
+            body = JSONObject().put("lang", if (language == "en") "en" else "id").toString())
+    }
+
+    suspend fun fetchCreditOrder(token: String, orderId: String, language: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/credits/purchase/status/${encodeSegment(orderId)}?lang=${if (language == "en") "en" else "id"}", token = token)
+    }
+
+    suspend fun cancelCreditOrder(token: String, orderId: String, language: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/credits/purchase/cancel", method = "POST", token = token,
+            body = JSONObject().put("orderId", orderId).put("lang", if (language == "en") "en" else "id").toString())
+    }
+
+    suspend fun fetchCreditQrImage(token: String, orderId: String): ByteArray = withContext(Dispatchers.IO) {
+        val builder = Request.Builder()
+            .url("$BASE_URL/api/credits/purchase/qr-image/${encodeSegment(orderId)}")
+            .header("Accept", "image/*")
+        if (token.isNotBlank()) builder.header("Authorization", "Bearer $token")
+        try {
+            client.newCall(builder.build()).execute().use { response ->
+                if (!response.isSuccessful) throw ApiException("QRIS tidak tersedia (HTTP ${response.code}).", response.code)
+                val type = response.header("Content-Type").orEmpty().lowercase(Locale.ROOT)
+                if (!type.startsWith("image/")) throw ApiException("Respons QRIS bukan gambar.")
+                val content = response.body?.bytes() ?: throw ApiException("Gambar QRIS kosong.")
+                if (content.size > 4_000_000 || content.isEmpty()) throw ApiException("Ukuran gambar QRIS tidak valid.")
+                content
+            }
+        } catch (e: IOException) {
+            throw IOException("Gagal mengambil QRIS. Periksa koneksi dan coba lagi.", e)
+        }
+    }
+
+    suspend fun fetchCreditHistoryFiltered(
+        token: String, language: String, kind: String, page: Int, from: String, to: String
+    ): JSONObject = withContext(Dispatchers.IO) {
+        val filters = buildList {
+            add("lang=${if (language == "en") "en" else "id"}")
+            add("page=${page.coerceAtLeast(1)}")
+            add("limit=20")
+            if (kind == "credit" || kind == "xp") add("kind=$kind")
+            if (from.isNotBlank()) add("from=${encodeSegment(from)}")
+            if (to.isNotBlank()) add("to=${encodeSegment(to)}")
+        }.joinToString("&")
+        request("/api/credits/history?$filters", token = token)
+    }
+
+    private fun encodeSegment(value: String) = URLEncoder.encode(value.trim(), StandardCharsets.UTF_8.name())
 
     /** Match the authenticated SettingsScreen.jsx API contracts. */
     suspend fun sendFeedback(token: String, rating: Int?, message: String): JSONObject = withContext(Dispatchers.IO) {

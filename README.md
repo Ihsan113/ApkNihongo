@@ -1,6 +1,26 @@
-# NihonGo Native Android — v0.1.19
+# NihonGo Native Android — v0.1.22
 
 Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi web. Situs dipakai sebagai referensi desain dan kontrak API; layar Android dibangun dengan Jetpack Compose dan tidak menampilkan situs melalui WebView.
+
+## Beli Kredit, Riwayat & Detail QRIS — v0.1.22
+
+Base **v0.1.21**. UI `CreditTopupScreen.jsx`, `CreditHistoryScreen.jsx`, dan `CreditPaymentScreen.jsx` ditiru menggunakan Jetpack Compose native dalam `NativeCreditTopupScreen.kt`, `NativeCreditHistoryScreen.kt` dan `NativeCreditPaymentScreen.kt`. Paket, saldo, XP, pembayaran, QRIS, dan transaksi dibaca dari server. Konfirmasi checkout, unduh QRIS memakai pemilih file, filter tanggal dan jenis riwayat, serta navigasi kembali berjenjang didukung. Tidak ada WebView. Lihat `path-notes/PATCH-NOTES-v0.1.22.md` untuk verifikasi dan batasan.
+
+**Penting:** ZIP sumber belum menjalani build Android lengkap; verifikasi di GitHub Actions dan uji alur pembayaran di lingkungan aman sebelum transaksi sungguhan.
+
+## Beli Kredit, QRIS, dan Riwayat v0.1.22 (current)
+
+Base adalah **v0.1.21**. Reward Center → Beli Kredit sekarang memuat paket dan saldo dari API, konfirmasi estimasi biaya provider, pembelian Premium Materi, lookup Order ID, dan lima pembelian terakhir. Layar Detail Pembayaran menampilkan QRIS dari endpoint server/QR string asli, hitung mundur, refresh status otomatis hanya saat foreground dan order masih pending, simpan gambar QR, salin ID, serta pembatalan dengan konfirmasi. Reward Center → Riwayat menampilkan transaksi XP/kredit, tiga filter jenis, lima filter tanggal termasuk tanggal custom, pagination 20 item, dan order top-up. Navigasi antarlayar memakai Compose native, bukan WebView. Responsif pada handset kecil sesuai breakpoint web.
+
+**Transaksi tetap otoritatif dari backend**; estimasi di konfirmasi bukan jumlah final, dan order sukses tidak pernah diklaim lokal. Build APK dan pembayaran nyata belum diuji. Detail serta langkah QA: [`path-notes/PATCH-NOTES-v0.1.22.md`](path-notes/PATCH-NOTES-v0.1.22.md).
+
+## GlobalLoading native mengikuti web (v0.1.21)
+
+Base **v0.1.20**. Layar loading global kini mengikuti `client/src/components/GlobalLoading.jsx`: logo resmi NihonGo, orbit cincin warna merah/emas, animasi melayang, sakura, glow, progress shimmer, status Jepang dan teks ID/EN, empat badge fitur serta tip. Dijalankan full native dengan **Jetpack Compose** tanpa WebView. Varian **account** muncul saat pemeriksaan sesi startup; varian **page compact** muncul saat Home pertama kali memuat progres dan statistik, serta fetch awal Misi/Beli Kredit/Riwayat. Tidak ada jeda buatan 3 detik pada native; loading ditutup ketika data sudah selesai, termasuk saat error supaya pemulihan/retry tetap tersedia. Home, Sensei, TTS, misi dan backend tetap dipertahankan. Lihat [`path-notes/PATCH-NOTES-v0.1.21.md`](path-notes/PATCH-NOTES-v0.1.21.md) untuk detail dan checklist. **APK belum diuji di perangkat**.
+
+## Halaman Misi native mengikuti web (v0.1.20)
+
+Base **v0.1.19**. Menu **Home → Reward Center → Misi** sekarang membuka `NativeMissionsScreen.kt` yang menyalin komposisi, ilustrasi dan logika klaim dari `MissionsScreen.jsx`. Progress dan hadiah sepenuhnya disinkronkan dengan backend asli, bukan angka simulasi. Refresh, loading/error, aturan opsional Review dan bonus, statistik harian, batas kredit dan reset direpresentasikan. Misi Belajar membuka daftar Learn native; permainan Quiz dan Review belum tersedia sebagai aktivitas native penuh (tombol menyampaikan batasan itu tanpa mengubah progres). Perubahan terbatas pada layar Misi, integrasi route, 3 aset, dan versi, serta dependency Lifecycle Compose untuk refresh saat resume. Lihat [`path-notes/PATCH-NOTES-v0.1.20.md`](path-notes/PATCH-NOTES-v0.1.20.md) untuk detail dan checklist. APK masih harus dibuild lewat GitHub Actions dan diuji di perangkat.
 
 ## Gestur tangan Home mengikuti source web v0.1.19 (current)
 
