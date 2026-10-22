@@ -1,6 +1,12 @@
-# NihonGo Native Android — v0.1.22
+# NihonGo Native Android — v0.1.23
 
 Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi web. Situs dipakai sebagai referensi desain dan kontrak API; layar Android dibangun dengan Jetpack Compose dan tidak menampilkan situs melalui WebView.
+
+## Build Fix v0.1.23 (base v0.1.22)
+
+Memperbaiki tiga error kompilasi Kotlin di `NativeMissionsScreen.kt` berdasarkan GitHub Actions run `39700580564` / job `119568539475`: menghapus import `androidx.compose.ui.draw.offset` yang tidak valid (fungsi `offset` sudah disediakan oleh `androidx.compose.foundation.layout.*`), serta menambahkan `androidx.lifecycle.Lifecycle` untuk `Lifecycle.Event.ON_RESUME`. Tidak ada perubahan pada logika Misi, Home, kredit, QRIS, riwayat, autentikasi, atau animasi Sensei. Nomor versi menjadi `0.1.23` / `versionCode 23`. Lihat [`path-notes/PATCH-NOTES-v0.1.23.md`](path-notes/PATCH-NOTES-v0.1.23.md).
+
+Catatan: integritas source sudah diperiksa, tetapi APK perlu dibuild lagi melalui GitHub Actions; environment ini tidak memiliki SDK Android dan cache Gradle untuk build lengkap.
 
 ## Beli Kredit, Riwayat & Detail QRIS — v0.1.22
 
