@@ -1,3 +1,11 @@
+# NihonGo Native v0.1.26 — Learn Build Fix
+
+Patch kompilasi untuk v0.1.25 berdasarkan GitHub Actions [run 39711392396](https://github.com/Ihsan113/ApkNihongo/actions/runs/39711392396/job/119603305104). Tiga kesalahan null-safety pada `NativeLessonPlayer.kt` baris 345/349 ditangani dengan memvalidasi objek soal sebelum mencatat jawaban salah. Konten Belajar, Home, Misi, Kredit, QRIS, Riwayat, animasi Sensei, dan pengaturan tidak diubah.
+
+Rincian: [`path-notes/PATCH-NOTES-v0.1.26.md`](path-notes/PATCH-NOTES-v0.1.26.md).
+
+**Status:** ZIP diuji integritasnya dan kesesuaian perubahan; build APK lengkap belum dijalankan (Android SDK tidak tersedia di lingkungan ini).
+
 # NihonGo Native v0.1.25 — Belajar Native
 
 Perubahan utama: tab Belajar lengkap dengan roadmap JLPT N5–N1, 1296 materi asli web (aset gzip), halaman belajar dan latihan native, akses energi/kredit dari server, dan sinkronisasi progres.

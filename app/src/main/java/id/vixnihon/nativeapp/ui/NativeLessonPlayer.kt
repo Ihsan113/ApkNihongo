@@ -334,6 +334,9 @@ private fun NativeLessonQuiz(page: JSONObject, lesson: JSONObject, lang: String,
     val tokens = remember(q) { q?.optJSONArray("answerTokens")?.strings()?.mapIndexed { i, s -> i to s }?.shuffled().orEmpty() }
     fun continueQuiz() {
         val id = questionId ?: return
+        // Satu frame transisi dapat membuat index soal belum tersedia.
+        // Jangan menyimpan jawaban bila data soal tidak valid.
+        val currentQuestion = q ?: return
         val response = selected ?: return
         val correct = response == answer || (kind == "arrange" && response.replace(Regex("[\\s。、，,.]"), "") == answer.replace(Regex("[\\s。、，,.]"), ""))
         if (correct) mastered = mastered + id
@@ -342,11 +345,11 @@ private fun NativeLessonQuiz(page: JSONObject, lesson: JSONObject, lang: String,
             wrongEntries = wrongEntries + JSONObject()
                 .put("lessonId", lesson.optString("id"))
                 .put("questionId", "${lesson.optString("id")}-${id}")
-                .put("questionText", q.optString("q", q.optString("audioText")))
+                .put("questionText", currentQuestion.optString("q", currentQuestion.optString("audioText")))
                 .put("correctAnswer", answer).put("selectedAnswer", response)
                 .put("options", JSONArray(if (kind == "arrange") tokens.map { it.second } else opts))
                 .put("quizType", kind)
-                .put("promptText", q.localized("prompt", lang))
+                .put("promptText", currentQuestion.localized("prompt", lang))
         }
         if (index + 1 < activeIndices.size) index++
         else if (round == "main" && mistakes.isNotEmpty()) { round = "review"; index = 0 }
