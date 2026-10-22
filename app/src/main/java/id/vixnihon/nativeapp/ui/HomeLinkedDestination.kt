@@ -70,56 +70,7 @@ internal fun HomeLinkedDestination(
             orderId = route.substringAfter("payment:"), onBack = onBack,
             onTopup = { onNavigate("topup") }, onNotice = onNotice
         )
-        route == "learn" -> NativeLinkedLearnScreen(language, chapter, lessons, progress, currentLessonId, onBack)
+        route == "learn" -> NativeLearnScreen(language, token, repository, onBack = onBack, onTopup = { onNavigate("topup") }, onNotice = onNotice)
     }
 }
 
-@Composable
-private fun NativeLinkedLearnScreen(
-    language: String, chapter: NativeChapterMeta?, lessons: List<NativeLessonMeta>,
-    progress: Map<String, NativeLessonProgress>, currentLessonId: String?, onBack: () -> Unit
-) {
-    val isId = language == "id"
-    val currentChapterLessons = chapter?.lessonIds?.mapNotNull { id -> lessons.firstOrNull { it.id == id } }.orEmpty()
-    val byNo = lessons.associateBy { it.no }
-    BackHandler { onBack() }
-    Column(Modifier.fillMaxSize().background(NihongoPalette.background)) {
-        CreditHeader(if (isId) "Lanjutkan Belajar" else "Continue Learning", "NihonGo", onBack = onBack)
-        LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 36.dp)) {
-            item {
-                LinkedLearnCard {
-                    Text(chapter?.let { if (isId) it.titleId else it.titleEn } ?: "NihonGo", color = NihongoPalette.white, fontSize = 17.sp, fontWeight = FontWeight.Black)
-                    Text(if (isId) "Materi dipilih menurut status lulus dan urutan unlock." else "Lessons follow progress and unlock order.", color = NihongoPalette.dim, fontSize = 11.sp)
-                }
-                Spacer(Modifier.height(12.dp))
-            }
-            items(currentChapterLessons, key = { it.id }) { lesson ->
-                val passed = progress[lesson.id]?.passed == true
-                val unlocked = lesson.no == 1 || byNo[lesson.no - 1]?.let { progress[it.id]?.passed == true } == true
-                LinkedLearnCard {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(if (passed) Icons.Outlined.CheckCircle else Icons.Outlined.MenuBook, contentDescription = null,
-                            tint = if (passed) NihongoPalette.green else if (unlocked) NihongoPalette.redLight else NihongoPalette.dim, modifier = Modifier.size(24.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text("${lesson.no}. ${if (isId) lesson.titleId else lesson.titleEn}", color = NihongoPalette.white, fontWeight = FontWeight.Black, fontSize = 13.sp)
-                            Text(when { passed -> if (isId) "Selesai" else "Completed"; lesson.id == currentLessonId -> if (isId) "Materi selanjutnya" else "Next lesson"; unlocked -> if (isId) "Terbuka" else "Unlocked"; else -> if (isId) "Terkunci" else "Locked" }, color = NihongoPalette.dim, fontSize = 11.sp)
-                        }
-                    }
-                    if (unlocked && lesson.id == currentLessonId) {
-                        Text(if (isId) "Pemutar materi native masih dikembangkan." else "Native lesson player is still in development.", color = NihongoPalette.dim, fontSize = 11.sp)
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun LinkedLearnCard(content: @Composable () -> Unit) {
-    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = NihongoPalette.surface,
-        border = BorderStroke(1.dp, NihongoPalette.borderStrong)) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
-    }
-}

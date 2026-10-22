@@ -1,3 +1,9 @@
+# NihonGo Native v0.1.25 — Belajar Native
+
+Perubahan utama: tab Belajar lengkap dengan roadmap JLPT N5–N1, 1296 materi asli web (aset gzip), halaman belajar dan latihan native, akses energi/kredit dari server, dan sinkronisasi progres.
+
+Catatan teknis serta batasan lihat `path-notes/PATCH-NOTES-v0.1.25.md`.
+
 # NihonGo Native Android — v0.1.24
 
 Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi web. Situs dipakai sebagai referensi desain dan kontrak API; layar Android dibangun dengan Jetpack Compose dan tidak menampilkan situs melalui WebView.

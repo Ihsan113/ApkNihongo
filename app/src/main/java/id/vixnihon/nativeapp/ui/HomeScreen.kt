@@ -1115,7 +1115,7 @@ private fun formatNativeDuration(minutes: Int, isId: Boolean, compact: Boolean =
 }
 
 @Composable
-private fun NativeBottomNav(isId: Boolean, onSelect: (String) -> Unit) {
+internal fun NativeBottomNav(isId: Boolean, activeKey: String = "home", onSelect: (String) -> Unit) {
     data class Tab(val key: String, val label: String, val icon: ImageVector)
     val tabs = listOf(
         Tab("home", if (isId) "Rumah" else "Home", Icons.Filled.Home),
@@ -1132,7 +1132,7 @@ private fun NativeBottomNav(isId: Boolean, onSelect: (String) -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         tabs.forEach { tab ->
-            val active = tab.key == "home"
+            val active = tab.key == activeKey
             Column(
                 modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable { onSelect(tab.key) }.padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -1248,10 +1248,10 @@ private fun calculateNativeHomeLearning(
     progress: Map<String, NativeLessonProgress>
 ): NativeHomeLearning {
     if (catalog.lessons.isEmpty()) return NativeHomeLearning()
-    val byNo = catalog.lessons.associateBy { it.no }
+    // LearnScreen.jsx now allows every lesson regardless of earlier scores.
+    // Recommend the first unfinished lesson but never impose sequential locks.
     fun passed(lesson: NativeLessonMeta?): Boolean = lesson != null && progress[lesson.id]?.passed == true
-    fun unlocked(lesson: NativeLessonMeta): Boolean = lesson.no == 1 || passed(byNo[lesson.no - 1])
-    val current = catalog.lessons.firstOrNull { !passed(it) && unlocked(it) } ?: catalog.lessons.last()
+    val current = catalog.lessons.firstOrNull { !passed(it) } ?: catalog.lessons.last()
     val chapter = catalog.chapters.firstOrNull { current.id in it.lessonIds } ?: catalog.chapters.firstOrNull()
     val chapterLessons = chapter?.lessonIds?.mapNotNull { id -> catalog.lessons.firstOrNull { it.id == id } }.orEmpty()
     val done = chapterLessons.count(::passed)

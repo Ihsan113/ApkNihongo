@@ -86,6 +86,43 @@ class AuthRepository {
         request("/api/credits/history?lang=${if (language == "en") "en" else "id"}&page=${page.coerceAtLeast(1)}&limit=20$requestedKind", token = token)
     }
 
+    /** Web LearnScreen energy gate: GET is read-only, POST charges at most once server-side. */
+    suspend fun lessonAccess(token: String, lessonId: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/content/access/lesson/${encodeSegment(lessonId)}", token = token)
+    }
+
+    suspend fun startLesson(token: String, lessonId: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/content/access/lesson/${encodeSegment(lessonId)}/start", method = "POST", token = token, body = "{}")
+    }
+
+    suspend fun saveLessonProgress(token: String, lessonId: String, stars: Int, passed: Boolean,
+        score: Int, total: Int): JSONObject = withContext(Dispatchers.IO) {
+        val passing = kotlin.math.max(1, kotlin.math.ceil(total * 0.8).toInt())
+        request("/api/progress/lesson", method = "POST", token = token, body = JSONObject()
+            .put("lessonId", lessonId).put("stars", stars).put("passed", passed)
+            .put("score", score).put("total", total).put("passScore", passing).toString())
+    }
+
+    suspend fun studyHeartbeat(token: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/activity/study-heartbeat", method = "POST", token = token,
+            body = JSONObject().put("screen", "lesson").toString())
+    }
+
+    suspend fun reportLessonQuiz(token: String, score: Int, total: Int, lessonId: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/activity/quiz", method = "POST", token = token,
+            body = JSONObject().put("source", "quiz_lesson").put("score", score)
+                .put("total", total).put("category", lessonId.take(80)).toString())
+    }
+
+    suspend fun saveWrongLessonAnswers(token: String, entries: org.json.JSONArray): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/wrong-answers", method = "POST", token = token,
+            body = JSONObject().put("items", entries).toString())
+    }
+
+    suspend fun fetchWallet(token: String): JSONObject = withContext(Dispatchers.IO) {
+        request("/api/wallet", token = token)
+    }
+
     /** Purchase and ledger endpoints mirror the web checkout. The server alone owns amounts and status. */
     suspend fun fetchPaymentMethods(token: String): JSONObject = withContext(Dispatchers.IO) {
         request("/api/credits/payment-methods", token = token)
