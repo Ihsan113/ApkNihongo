@@ -1,3 +1,13 @@
+# NihonGo Native v0.1.27 — Belajar Roadmap & Asset Packaging Fix
+
+Source lengkap dari base v0.1.26. Memperbaiki kegagalan buka materi di Android (toast path `study/n5-...json.gz`) dengan kemasan `.dat` GZIP yang diverifikasi saat build, serta mengganti roadmap Bab/Materi menjadi node lingkaran berkelok sesuai `LearnScreen.jsx` web. Tetap native (Jetpack Compose), tanpa WebView/fullscreen paksa, dengan backend otoritatif untuk kredit dan progress.
+
+**Catatan teknis dan checklist:** [`path-notes/PATCH-NOTES-v0.1.27.md`](path-notes/PATCH-NOTES-v0.1.27.md).
+**Uji aset lokal:** `python3 scripts/check_lesson_assets.py app/src/main/assets`.
+**Penting:** install APK yang dibangun dari ZIP baru, bukan APK lama. Build Android penuh dan playback materi pada HP belum diverifikasi di sini.
+
+---
+
 # NihonGo Native v0.1.26 — Learn Build Fix
 
 Patch kompilasi untuk v0.1.25 berdasarkan GitHub Actions [run 39711392396](https://github.com/Ihsan113/ApkNihongo/actions/runs/39711392396/job/119603305104). Tiga kesalahan null-safety pada `NativeLessonPlayer.kt` baris 345/349 ditangani dengan memvalidasi objek soal sebelum mencatat jawaban salah. Konten Belajar, Home, Misi, Kredit, QRIS, Riwayat, animasi Sensei, dan pengaturan tidak diubah.

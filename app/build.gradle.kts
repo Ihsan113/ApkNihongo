@@ -14,8 +14,8 @@ android {
         applicationId = "id.vixnihon.nativeapp"
         minSdk = 26
         targetSdk = 36
-        versionCode = 26
-        versionName = "0.1.26"
+        versionCode = 27
+        versionName = "0.1.27"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -61,6 +61,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true }
+    androidResources { noCompress += "dat" }
     packaging {
         resources.excludes += setOf(
             "/META-INF/{AL2.0,LGPL2.1}",

@@ -44,6 +44,8 @@ jobs:
           fi
       - name: Build debug APK
         run: ./gradlew --no-daemon --stacktrace :app:assembleDebug
+      - name: Verifikasi paket 1.296 materi dalam APK
+        run: python3 scripts/check_lesson_assets.py app/build/outputs/apk/debug/app-debug.apk
       - name: Cek SHA-1 sertifikat APK
         run: |
           APKSIGNER=$(ls $ANDROID_HOME/build-tools/*/apksigner | tail -1)
