@@ -1,13 +1,5 @@
 package id.vixnihon.nativeapp.ui
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -41,6 +33,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,6 +66,7 @@ import androidx.compose.ui.unit.sp
 import id.vixnihon.nativeapp.R
 import kotlin.math.PI
 import kotlin.math.sin
+import kotlinx.coroutines.isActive
 
 /**
  * Native Jetpack Compose implementation of client/src/components/GlobalLoading.jsx.
@@ -93,7 +90,7 @@ internal fun NativeGlobalLoading(
     val s1 = NihongoPalette.surface
     val s3 = NihongoPalette.surface3
     val white = NihongoPalette.white
-    val dim = if (light) Color(0xFF6F7288) else Color(0xFF6A6A90)
+    val dim = if (light) Color(0xFF6F7288) else NihongoPalette.dim
     val red = NihongoPalette.red
     val redLight = if (light) Color(0xFFD93B3B) else NihongoPalette.redLight
     val goldLight = if (light) Color(0xFFC9952E) else Color(0xFFDEB55A)
@@ -112,17 +109,29 @@ internal fun NativeGlobalLoading(
         if (isId) "Memuat..." else "Loading..."
     }
 
-    val infinite = rememberInfiniteTransition(label = "NihonGo loading")
-    val orbit by infinite.animateFloat(0f, 360f,
-        infiniteRepeatable(tween(1180, easing = LinearEasing)), label = "Orbit")
-    val floatOffset by infinite.animateFloat(0f, -8f,
-        infiniteRepeatable(tween(1225, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "Float")
-    val shimmer by infinite.animateFloat(-1.30f, 2.40f,
-        infiniteRepeatable(tween(1550, easing = LinearEasing)), label = "Shimmer")
-    val petalPhase by infinite.animateFloat(0f, 1f,
-        infiniteRepeatable(tween(3200, easing = LinearEasing)), label = "Sakura")
-    val pulse by infinite.animateFloat(0.75f, 1f,
-        infiniteRepeatable(tween(650), RepeatMode.Reverse), label = "Pulse")
+    // One Choreographer frame clock, independent of Android's animator-duration scale.
+    // A 0x developer-option scale must not freeze the visible loading indicator.
+    // Cap updates at ~30 fps to keep this short-lived overlay inexpensive.
+    var elapsedNanos by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(Unit) {
+        var started = 0L
+        var lastUpdate = 0L
+        while (isActive) {
+            withFrameNanos { now ->
+                if (started == 0L) started = now
+                if (lastUpdate == 0L || now - lastUpdate >= 30_000_000L) {
+                    elapsedNanos = (now - started).coerceAtLeast(0L)
+                    lastUpdate = now
+                }
+            }
+        }
+    }
+    val ms = elapsedNanos / 1_000_000.0
+    val orbit = ((ms / 1_850.0) * 360.0 % 360.0).toFloat()
+    val floatOffset = (sin(ms * 2.0 * PI / 2_800.0) * 4.0).toFloat()
+    val shimmer = (((ms / 1_650.0) % 1.0) * 1.9 - 0.65).toFloat()
+    val petalPhase = ((ms / 4_500.0) % 1.0).toFloat()
+    val pulse = (0.85 + 0.15 * sin(ms * 2.0 * PI / 1_600.0)).toFloat()
     val localDensity = LocalDensity.current
     val floatPx = with(localDensity) { floatOffset.dp.toPx() }
     val markSize = if (compact) 108.dp else 128.dp
@@ -164,11 +173,8 @@ internal fun NativeGlobalLoading(
                 ),
                 center = Offset(w * 0.93f, h * 0.16f), radius = w * 0.47f
             )
-            drawRoundRect(
-                color = borderHi.copy(alpha = 0.60f), topLeft = Offset(-w * 0.16f, h * 0.18f),
-                size = Size(w * 0.46f, h * 0.25f),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(28f), style = Stroke(1.5f)
-            )
+            // Avoid off-screen outlined rectangles: they appeared as a large broken
+            // box on the left of the loader on narrow Android screens.
             // Low-opacity ripples along the bottom, echoing the web loader background.
             for (i in 0 until 4) {
                 drawArc(
@@ -264,9 +270,8 @@ internal fun NativeGlobalLoading(
                     ) {
                         val progressWidthPx = with(localDensity) { maxWidth.toPx() }
                         val fill = boundedProgress?.let { it / 100f } ?: 0.54f
-                        val smoothed by animateFloatAsState(targetValue = fill, label = "Loading progress")
                         Box(
-                            modifier = Modifier.fillMaxWidth(if (boundedProgress == null) fill else smoothed)
+                            modifier = Modifier.fillMaxWidth(fill)
                                 .fillMaxHeight()
                                 .graphicsLayer {
                                     translationX = if (boundedProgress == null) shimmer * progressWidthPx else 0f

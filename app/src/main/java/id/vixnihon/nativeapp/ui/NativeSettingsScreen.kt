@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,9 +20,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
 import id.vixnihon.nativeapp.data.AppUser
 import id.vixnihon.nativeapp.data.AuthRepository
 import kotlinx.coroutines.launch
@@ -95,7 +98,7 @@ internal fun NativeSettingsScreen(
         }
         HorizontalDivider(color = NihongoPalette.border)
         LazyColumn(
-            Modifier.fillMaxSize(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 40.dp),
+            Modifier.fillMaxSize().imePadding(), contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             when (page) {
@@ -179,9 +182,24 @@ internal fun NativeSettingsScreen(
                 "feedback" -> {
                     item { SettingsSectionTitle(if (id) "KIRIM SARAN" else "SEND FEEDBACK") }
                     item { SettingsContentCard {
-                        Text(if (id) "Beri penilaian" else "Rate your experience", color = NihongoPalette.white, fontWeight = FontWeight.Bold)
-                        Row { (1..5).forEach { star -> Text(if (star <= rating) "★" else "☆", color = NihongoPalette.gold, fontSize = 32.sp, modifier = Modifier.clickable { rating = star }.padding(end = 10.dp)) } }
-                        OutlinedTextField(value = message, onValueChange = { message = it.take(2000) }, label = { Text(if (id) "Saran (opsional)" else "Feedback (optional)") }, minLines = 3, maxLines = 6, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedTextColor = NihongoPalette.white, unfocusedTextColor = NihongoPalette.white))
+                        Text(if (id) "Bagaimana pengalamanmu?" else "How was your experience?", color = NihongoPalette.white, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(if (id) "Penilaian membantu kami menyempurnakan aplikasi." else "Your rating helps us improve the app.", color = NihongoPalette.dim, fontSize = 11.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            (1..5).forEach { star ->
+                                Box(Modifier.weight(1f).height(46.dp).clickable { rating = star }, contentAlignment = Alignment.Center) {
+                                    Text(if (star <= rating) "★" else "☆", color = NihongoPalette.gold, fontSize = 31.sp, textAlign = TextAlign.Center)
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(3.dp))
+                        NihongoFormField(
+                            value = message, onValueChange = { message = it.take(2000) },
+                            title = if (id) "Saran atau masukan" else "Feedback",
+                            placeholder = if (id) "Apa yang perlu kami tingkatkan?" else "What can we improve?",
+                            singleLine = false, minLines = 4, maxLines = 7,
+                            supportingText = if (id) "Opsional · ${message.length}/2000 karakter" else "Optional · ${message.length}/2000 characters",
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
+                        )
                     } }
                     item { SettingsActionButton(if (busy) (if (id) "Mengirim..." else "Sending...") else if (id) "Kirim Saran" else "Send Feedback", enabled = !busy && (rating > 0 || message.isNotBlank())) {
                         busy = true
@@ -195,7 +213,7 @@ internal fun NativeSettingsScreen(
                 }
                 "about" -> {
                     item { SettingsInfo("Nihongo App", if (id) "Aplikasi belajar bahasa Jepang bertahap: materi, kuis, review, flashcard, dan bantuan Sensei." else "Step-by-step Japanese learning app with lessons, quizzes, flashcards and Sensei.") }
-                    item { SettingsInfo("Developer", "Brand: DanzKu\nVersi native: 0.1.16\nNihongo bukan aplikasi resmi JLPT atau Japan Foundation.") }
+                    item { SettingsInfo("Developer", "Brand: DanzKu\nVersi native: 0.1.24\nNihongo bukan aplikasi resmi JLPT atau Japan Foundation.") }
                 }
                 "faq" -> {
                     item { SettingsInfo(if (id) "Apakah kredit permanen?" else "Are credits permanent?", if (id) "Ya, selama akun aktif dan tidak dihapus." else "Yes, while your account is active.") }
@@ -317,7 +335,7 @@ private fun SettingsFloatSlider(label: String, value: Float, min: Float, max: Fl
 @Composable
 private fun SettingsActionButton(text: String, danger: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
-        Modifier.fillMaxWidth().background(if (danger) Color(0x382F171C) else NihongoPalette.red, RoundedCornerShape(16.dp))
+        Modifier.fillMaxWidth().background(if (!enabled) NihongoPalette.surface3 else if (danger) Color(0x382F171C) else NihongoPalette.red, RoundedCornerShape(16.dp))
             .clickable(enabled = enabled, onClick = onClick).padding(15.dp), contentAlignment = Alignment.Center
     ) { Text(text, color = if (enabled) (if (danger) NihongoPalette.redSoft else Color.White) else NihongoPalette.dim, fontWeight = FontWeight.Black, fontSize = 13.sp) }
 }

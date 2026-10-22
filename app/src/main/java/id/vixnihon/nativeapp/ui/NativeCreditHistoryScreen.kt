@@ -5,7 +5,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +17,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,9 +28,14 @@ import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Receipt
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.DateRange
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -72,6 +75,7 @@ internal fun NativeCreditHistoryScreen(language: String, token: String, reposito
     var to by remember { mutableStateOf(nativeDate(0)) }
     var page by remember { mutableIntStateOf(1) }
     var refresh by remember { mutableIntStateOf(0) }
+    var filtersExpanded by remember { mutableStateOf(false) }
     var payload by remember { mutableStateOf<JSONObject?>(null) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf("") }
@@ -91,7 +95,13 @@ internal fun NativeCreditHistoryScreen(language: String, token: String, reposito
         runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(current) }.getOrNull()?.let { calendar.time = it }
         DatePickerDialog(context, { _, year, month, day ->
             val chosen = "%04d-%02d-%02d".format(Locale.US, year, month + 1, day)
-            if (start) from = chosen else to = chosen
+            if (start) {
+                from = chosen
+                if (to.isNotBlank() && chosen > to) to = chosen
+            } else {
+                to = chosen
+                if (from.isNotBlank() && chosen < from) from = chosen
+            }
             quick = "custom"; page = 1
         }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
     }
@@ -125,30 +135,80 @@ internal fun NativeCreditHistoryScreen(language: String, token: String, reposito
             }
             item {
                 CreditCard {
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("all", "credit", "xp").forEach { id ->
-                            CreditPill(when(id) { "all" -> if (isId) "Semua" else "All"; "credit" -> if (isId) "Kredit" else "Credit"; else -> "XP" }, kind == id) { kind = id; page = 1 }
-                        }
+                    val kindName = when (kind) {
+                        "credit" -> if (isId) "Kredit" else "Credit"
+                        "xp" -> "XP"
+                        else -> if (isId) "Semua transaksi" else "All transactions"
                     }
-                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("today", "7d", "30d", "custom", "all").forEach { id ->
-                            CreditPill(when(id) { "today" -> if (isId) "Hari ini" else "Today"; "7d" -> if (isId) "7 hari" else "7 days"; "30d" -> if (isId) "30 hari" else "30 days"; "custom" -> "Custom"; else -> if (isId) "Semua tanggal" else "All dates" }, quick == id) { chooseQuick(id) }
-                        }
+                    val periodName = when (quick) {
+                        "today" -> if (isId) "Hari ini" else "Today"
+                        "7d" -> if (isId) "7 hari" else "7 days"
+                        "30d" -> if (isId) "30 hari" else "30 days"
+                        "all" -> if (isId) "Semua waktu" else "All time"
+                        else -> if (from.isNotBlank() && to.isNotBlank()) "$from – $to" else if (isId) "Pilih tanggal" else "Select dates"
                     }
-                    if (quick == "custom") {
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Column(Modifier.weight(1f).clickable { chooseDate(true) }) {
-                                Text(if (isId) "Dari" else "From", color = NihongoPalette.dim, fontSize = 10.sp)
-                                Text(from.ifBlank { "Pilih tanggal" }, color = NihongoPalette.white, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        Modifier.fillMaxWidth().clickable { filtersExpanded = !filtersExpanded }.padding(vertical = 3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(11.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.size(40.dp).background(NihongoPalette.surface2, RoundedCornerShape(13.dp)), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.Tune, contentDescription = null, tint = CreditRed, modifier = Modifier.size(20.dp))
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(if (isId) "Filter riwayat" else "History filters", color = NihongoPalette.white, fontSize = 13.sp, fontWeight = FontWeight.Black)
+                            Text("$kindName · $periodName", color = NihongoPalette.dim, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Icon(if (filtersExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                            contentDescription = if (filtersExpanded) "Tutup filter" else "Buka filter", tint = NihongoPalette.dim)
+                    }
+                    if (filtersExpanded) {
+                        Spacer(Modifier.height(3.dp))
+                        HorizontalDivider(color = NihongoPalette.border)
+                        Spacer(Modifier.height(3.dp))
+                        Text(if (isId) "Jenis transaksi" else "Transaction type", color = NihongoPalette.dim, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("all", "credit", "xp").forEach { choice ->
+                                val label = when(choice) { "all" -> if (isId) "Semua" else "All"; "credit" -> if (isId) "Kredit" else "Credit"; else -> "XP" }
+                                CreditPill(label, kind == choice, Modifier.weight(1f)) { kind = choice; page = 1 }
                             }
-                            Column(Modifier.weight(1f).clickable { chooseDate(false) }) {
-                                Text(if (isId) "Sampai" else "To", color = NihongoPalette.dim, fontSize = 10.sp)
-                                Text(to.ifBlank { "Pilih tanggal" }, color = NihongoPalette.white, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text(if (isId) "Periode" else "Period", color = NihongoPalette.dim, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CreditPill(if (isId) "Hari ini" else "Today", quick == "today", Modifier.weight(1f)) { chooseQuick("today") }
+                            CreditPill(if (isId) "7 hari" else "7 days", quick == "7d", Modifier.weight(1f)) { chooseQuick("7d") }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CreditPill(if (isId) "30 hari" else "30 days", quick == "30d", Modifier.weight(1f)) { chooseQuick("30d") }
+                            CreditPill(if (isId) "Semua waktu" else "All time", quick == "all", Modifier.weight(1f)) { chooseQuick("all") }
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().background(
+                                if (quick == "custom") NihongoPalette.red.copy(alpha = .13f) else NihongoPalette.surface2,
+                                RoundedCornerShape(14.dp)
+                            ).clickable { chooseQuick("custom") }.padding(horizontal = 12.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(Icons.Outlined.DateRange, contentDescription = null, tint = CreditRed, modifier = Modifier.size(19.dp))
+                            Text(if (isId) "Rentang tanggal khusus" else "Custom date range", color = NihongoPalette.white, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = NihongoPalette.dim, modifier = Modifier.size(19.dp))
+                        }
+                        if (quick == "custom") {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                HistoryDateButton(if (isId) "Dari" else "From", from, Modifier.weight(1f)) { chooseDate(true) }
+                                HistoryDateButton(if (isId) "Sampai" else "To", to, Modifier.weight(1f)) { chooseDate(false) }
                             }
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            Text(if (isId) "Reset filter" else "Reset filters", color = CreditRed, fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp, modifier = Modifier.clickable { reset() }.padding(vertical = 7.dp, horizontal = 4.dp))
                         }
                     }
                     payload?.optJSONObject("retention")?.takeIf { it.optBoolean("detailAutoArchive", false) }?.let { retention ->
-                        Text(if (isId) "Detail riwayat otomatis diarsipkan setelah ${retention.optInt("days")} hari. Saldo dan total XP tetap aman." else "History detail is archived after ${retention.optInt("days")} days.", color = NihongoPalette.dim, fontSize = 11.sp)
+                        Text(if (isId) "Detail riwayat diarsipkan setelah ${retention.optInt("days")} hari. Saldo tetap aman."
+                        else "History detail is archived after ${retention.optInt("days")} days.", color = NihongoPalette.dim, fontSize = 11.sp)
                     }
                 }
             }
@@ -240,5 +300,19 @@ private fun HistoryLedgerRow(item: JSONObject, language: String) {
                 Text("${if (isId) "Saldo" else "Balance"} ${creditCount(item.optLong("balanceAfter"))}", color = NihongoPalette.dim, fontSize = 9.sp)
             }
         }
+    }
+}
+
+@Composable
+private fun HistoryDateButton(label: String, value: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Column(
+        modifier.background(NihongoPalette.surface2, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Text(label, color = NihongoPalette.dim, fontSize = 10.sp)
+        Text(value.ifBlank { "Pilih tanggal" }, color = NihongoPalette.white, fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

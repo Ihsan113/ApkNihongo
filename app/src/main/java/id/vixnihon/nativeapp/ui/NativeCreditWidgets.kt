@@ -95,12 +95,16 @@ internal fun CreditHeader(title: String, subtitle: String, onBack: () -> Unit, o
 }
 
 @Composable
-internal fun CreditPill(label: String, selected: Boolean, onClick: () -> Unit) {
+internal fun CreditPill(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Surface(
-        modifier = Modifier.clickable(onClick = onClick), shape = RoundedCornerShape(50),
+        modifier = modifier.clickable(onClick = onClick), shape = RoundedCornerShape(50),
         color = if (selected) NihongoPalette.red else NihongoPalette.surface2,
         border = BorderStroke(1.dp, if (selected) CreditRed else NihongoPalette.borderStrong)
-    ) { Text(label, Modifier.padding(horizontal = 13.dp, vertical = 10.dp), color = if (selected) Color.White else NihongoPalette.dim, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+    ) {
+        Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
+            Text(label, color = if (selected) Color.White else NihongoPalette.dim, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+    }
 }
 
 @Composable

@@ -1,6 +1,16 @@
-# NihonGo Native Android — v0.1.23
+# NihonGo Native Android — v0.1.24
 
 Proyek Android **full native** untuk menyalin tampilan dan alur NihonGo versi web. Situs dipakai sebagai referensi desain dan kontrak API; layar Android dibangun dengan Jetpack Compose dan tidak menampilkan situs melalui WebView.
+
+## UI Polish v0.1.24 — Loading, Form, dan Filter (base v0.1.23)
+
+- Loading: menghapus persegi dekorasi sebagian di luar layar yang tampak sebagai **kotak aneh** pada sisi kiri; ring, sakura, dan shimmer memakai satu Choreographer frame clock (`withFrameNanos`, ~30fps) sehingga tidak dibekukan oleh *Animator duration scale* 0x di Developer options. Jam berhenti otomatis ketika overlay tidak ada. Animasi konten biasa tetap menghormati preferensi animasi OS; yang independen hanya indikator proses loading.
+- Pengaturan → Kirim Saran: input multi-baris berlabel tetap, placeholder, sudut halus, warna fokus, bantuan hitung karakter, bintang rating dengan area sentuh merata, dan penyesuaian ruang keyboard.
+- Beli Kredit → Cek Order: input Order ID baru dengan IME *Search*, batas 96 karakter dan tombol status yang aktif hanya bila ada ID. Tidak mengubah endpoint/payment.
+- Riwayat XP/Kredit: filter ringkas yang bisa dibuka, ringkasan pilihan, kategori segmented seimbang, periode 2×2, tanggal khusus, reset, serta penyelarasan rentang tanggal agar tidak terbalik.
+- Halaman lain tetap berasal dari v0.1.23. Tidak ada perubahan pada API backend, login, Home, Sensei, alur QRIS, dan admin.
+
+**Pemeriksaan:** sumber dan integritas ZIP dapat diuji secara lokal. **APK belum dibuild/diuji di perangkat** (Android SDK tidak tersedia di lingkungan ini). Lihat [`path-notes/PATCH-NOTES-v0.1.24.md`](path-notes/PATCH-NOTES-v0.1.24.md).
 
 ## Build Fix v0.1.23 (base v0.1.22)
 

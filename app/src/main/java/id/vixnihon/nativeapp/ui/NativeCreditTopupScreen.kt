@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ChevronRight
@@ -30,7 +31,6 @@ import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,6 +47,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -201,10 +203,17 @@ internal fun NativeCreditTopupScreen(
                             Text(if (isId) "Cek status pembayaran manual" else "Check payment status manually", fontSize = 11.sp, color = NihongoPalette.dim)
                         }
                     }
-                    OutlinedTextField(value = lookup, onValueChange = { lookup = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
-                        label = { Text(if (isId) "Tempel Order ID" else "Paste Order ID") })
-                    CreditAction(if (isId) "Buka Order" else "Open Order") {
-                        if (lookup.isNotBlank()) onOrder(lookup.trim()) else error = if (isId) "Masukkan Order ID terlebih dahulu." else "Enter an Order ID first."
+                    NihongoFormField(
+                        value = lookup,
+                        onValueChange = { lookup = it.take(96) },
+                        title = if (isId) "Order ID" else "Order ID",
+                        placeholder = if (isId) "Masukkan atau tempel ID transaksi" else "Enter or paste your transaction ID",
+                        supportingText = if (isId) "ID bisa disalin dari detail pembayaran." else "Copy the ID from your payment details.",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { if (lookup.isNotBlank()) onOrder(lookup.trim()) }),
+                    )
+                    CreditAction(if (isId) "Cek Status Order" else "Check Order Status", enabled = lookup.isNotBlank()) {
+                        onOrder(lookup.trim())
                     }
                 }
             }
